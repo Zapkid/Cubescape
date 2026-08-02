@@ -435,6 +435,9 @@ export class Bot {
       this.lastAbilityAt = Date.now();
       this.room.send("ability", { slot: 2 }); // combat slot for every char
     }
+    if (bestD < 1.6) {
+      this.room.send("ability", { slot: 3 }); // universal strike when adjacent
+    }
   }
 
   private faceYaw = 0;

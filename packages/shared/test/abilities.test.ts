@@ -146,6 +146,30 @@ describe("bypass", () => {
   });
 });
 
+describe("punch (universal strike)", () => {
+  it("hits one adjacent mob in the facing cone", () => {
+    const r = executeAbility(
+      "punch",
+      ctx({
+        yaw: 0,
+        mobs: [
+          { id: "near", x: 4.5, z: 5.6, hp: 25 },
+          { id: "alsoNear", x: 4.7, z: 5.7, hp: 25 },
+        ],
+      }),
+    );
+    expect(r.ok).toBe(true);
+    expect(r.effects.filter((e) => e.type === "damageMob")).toHaveLength(1);
+  });
+
+  it("whiffs (but still cooldowns) with nothing in range", () => {
+    const r = executeAbility("punch", ctx({ mobs: [] }));
+    expect(r.ok).toBe(true);
+    expect(r.effects).toHaveLength(0);
+    expect(r.cooldownUntil).toBeGreaterThan(1000);
+  });
+});
+
 describe("grapple / peek / deployables", () => {
   it("grapple flags the caster", () => {
     const r = executeAbility("grapple", ctx());

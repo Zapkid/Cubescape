@@ -25,7 +25,8 @@ export const InteractMsg = z.object({
 export type InteractMsg = z.infer<typeof InteractMsg>;
 
 export const AbilityMsg = z.object({
-  slot: z.number().int().min(0).max(2),
+  /** 0..2 = character abilities, 3 = universal strike */
+  slot: z.number().int().min(0).max(3),
 });
 export type AbilityMsg = z.infer<typeof AbilityMsg>;
 

@@ -89,8 +89,8 @@ export class PlayerState extends Schema {
   @type("number") reviveProgress = 0;
 
   @type(["string"]) keys = new ArraySchema<string>();
-  /** ability cooldown expiry ticks, slots 0..2 */
-  @type(["number"]) cooldowns = new ArraySchema<number>(0, 0, 0);
+  /** ability cooldown expiry ticks, slots 0..2 + universal strike at 3 */
+  @type(["number"]) cooldowns = new ArraySchema<number>(0, 0, 0, 0);
   @type("number") grappleUntil = 0;
 
   @type("string") anchorCoord = "0,0,0";

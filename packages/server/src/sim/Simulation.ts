@@ -219,7 +219,8 @@ export class Simulation {
     if (!room) return;
     const charDef = CHARACTERS[p.charId as CharId];
     if (!charDef) return;
-    const abilityId = charDef.abilities[slot as 0 | 1 | 2];
+    const abilityId =
+      slot === 3 ? ("punch" as const) : charDef.abilities[slot as 0 | 1 | 2];
     if (!abilityId) return;
 
     const template = getTemplate(room.templateId);
@@ -708,10 +709,18 @@ export class Simulation {
   private spawnMobs(room: RoomState, triggered: boolean): void {
     const template = getTemplate(room.templateId);
     let any = false;
+    // don't swarm small parties
+    let connectedPlayers = 0;
+    this.state.players.forEach((pl) => {
+      if (pl.connected) connectedPlayers++;
+    });
+    const maxHostiles = 1 + Math.max(1, connectedPlayers);
+    let spawned = 0;
     for (const prop of template.props) {
       if (prop.type !== "mob_spawn") continue;
       const isTriggered = prop.meta?.trigger === "objective";
       if (isTriggered !== triggered) continue;
+      if (!triggered && ++spawned > maxHostiles) continue;
       const kind = (prop.meta?.kind ?? "slime") as MobKind;
       const m = new MobState();
       m.id = `${room.coordId}:${prop.id ?? `mob${++this.idCounter}`}`;

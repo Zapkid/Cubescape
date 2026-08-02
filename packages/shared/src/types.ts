@@ -95,7 +95,8 @@ export type AbilityId =
   | "dart"
   | "bypass"
   | "fieldkit"
-  | "turret";
+  | "turret"
+  | "punch";
 
 export interface AbilityDef {
   id: AbilityId;

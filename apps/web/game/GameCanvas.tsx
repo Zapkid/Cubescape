@@ -53,17 +53,25 @@ function GameScene({ net }: { net: NetClient }) {
       const pitch = Math.max(-1.2, Math.min(0.5, g.pitch - e.movementY * 0.0026));
       g.setLook(yaw, pitch);
     };
+    const onMouseDown = (e: MouseEvent) => {
+      // universal strike on left click while locked
+      if (document.pointerLockElement === el && e.button === 0) {
+        net.ability(3);
+      }
+    };
+    el.addEventListener("mousedown", onMouseDown);
     el.addEventListener("click", onClick);
     document.addEventListener("pointerlockchange", onLockChange);
     document.addEventListener("mousemove", onMove);
     const detachKeys = attachInput();
     return () => {
       el.removeEventListener("click", onClick);
+      el.removeEventListener("mousedown", onMouseDown);
       document.removeEventListener("pointerlockchange", onLockChange);
       document.removeEventListener("mousemove", onMove);
       detachKeys();
     };
-  }, [gl]);
+  }, [gl, net]);
 
   // main loop: input → prediction → intents → camera
   const stepSfxAt = useRef(0);
@@ -84,11 +92,12 @@ function GameScene({ net }: { net: NetClient }) {
     net.markFrame();
 
     if (s.phase === "running") {
+      const drive = net.autoInput ?? input;
       net.update(dt, {
-        mx: input.mx,
-        mz: input.mz,
-        jump: input.jump,
-        hold: input.hold,
+        mx: drive.mx,
+        mz: drive.mz,
+        jump: drive.jump,
+        hold: drive.hold,
       });
       if (input.interactTap) net.interact();
       if (input.ability !== null) net.ability(input.ability);

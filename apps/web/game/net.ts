@@ -126,6 +126,8 @@ export class NetClient {
   /** local predicted sim state */
   sim = { x: 4.5, y: 0, z: 4.5, vy: 0 };
   onEvent: ((e: ServerEvent) => void) | null = null;
+  /** dev/e2e: when set, overrides sampled keyboard input (blur-proof driving) */
+  autoInput: { mx: number; mz: number; jump: boolean; hold: boolean } | null = null;
 
   async connect(code: string, name: string, charId: string | null, seed?: number): Promise<void> {
     const url =
@@ -180,7 +182,8 @@ export class NetClient {
     // server view stays warm and reconciliation doesn't snap on tab return
     this.heartbeat = setInterval(() => {
       if (performance.now() - this.lastFrameAt < 250) return;
-      const inp = sampleInput(useGame.getState().yaw);
+      const inp =
+        this.autoInput ?? sampleInput(useGame.getState().yaw);
       this.update(0.1, { mx: inp.mx, mz: inp.mz, jump: inp.jump, hold: inp.hold });
     }, 100);
   }

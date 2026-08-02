@@ -72,7 +72,7 @@ export const ABILITIES: Record<AbilityId, AbilityDef> = {
   dart: {
     id: "dart",
     name: "Slow Dart",
-    cooldown: 6,
+    cooldown: 3.5,
     range: 10,
     description: "Ranged dart that damages and slows a mob.",
   },
@@ -96,6 +96,13 @@ export const ABILITIES: Record<AbilityId, AbilityDef> = {
     cooldown: 35,
     range: 0,
     description: "Deploy a turret that shoots and draws mob aggro for 20s.",
+  },
+  punch: {
+    id: "punch",
+    name: "Strike",
+    cooldown: 0.8,
+    range: 1.7,
+    description: "Quick close-range hit. Always available.",
   },
 };
 

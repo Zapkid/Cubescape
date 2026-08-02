@@ -10,6 +10,8 @@ import {
   FIELDKIT_DURATION,
   GRAPPLE_DURATION,
   HOLDFAST_DURATION,
+  PUNCH_DAMAGE,
+  PUNCH_RANGE,
   SWING_DAMAGE,
   SWING_RANGE,
   SWING_STAGGER,
@@ -209,5 +211,16 @@ export function executeAbility(id: AbilityId, ctx: AbilityCtx): AbilityResult {
           untilTick: ctx.tick + Math.round(DEPLOY_TURRET_LIFETIME * TICK_RATE),
         },
       ]);
+    case "punch": {
+      const effects: Effect[] = [];
+      for (const m of ctx.mobs) {
+        if (m.hp <= 0) continue;
+        if (inCone(c.x, c.z, ctx.yaw, m.x, m.z, PUNCH_RANGE, Math.PI * 0.5)) {
+          effects.push({ type: "damageMob", mobId: m.id, amount: PUNCH_DAMAGE });
+          break; // single target
+        }
+      }
+      return done(effects);
+    }
   }
 }

@@ -155,7 +155,7 @@ export function Hud({ net }: { net: NetClient }) {
           })}
         </div>
         <div className="hint-block dim small">
-          WASD move · E interact · 1-3 abilities · V ping · T taunt
+          WASD move · LMB strike · E interact · 1-3 abilities · V ping · T taunt
         </div>
       </div>
     </div>

@@ -37,13 +37,19 @@ export const DEPLOY_TURRET_LIFETIME = 20;
 export const DEPLOY_TURRET_HP = 60;
 export const DEPLOY_TURRET_DMG = 6;
 export const DEPLOY_TURRET_RATE = 1.2; // shots/sec
-export const DART_DAMAGE = 12;
+export const DART_DAMAGE = 18;
 export const DART_SLOW_MULT = 0.6;
 export const DART_SLOW_DURATION = 3;
 export const SWING_DAMAGE = 25;
 export const SWING_RANGE = 2.0;
 export const SWING_STAGGER = 1.0;
 export const BYPASS_RANGE = 2.5;
+/** universal light attack — every runner can always fight back */
+export const PUNCH_DAMAGE = 8;
+export const PUNCH_RANGE = 1.7;
+export const PUNCH_COOLDOWN = 0.8;
+/** hostile mob spawns are capped at 1 + party size (solo isn't swarmed) */
+export const MOB_PARTY_CAP_BONUS = 1;
 
 /** Difficulty knobs (generator) */
 export const GEN = {
@@ -80,7 +86,7 @@ export const ARCHETYPE_LIGHTING: Record<
 };
 
 export const MOB_DEFS = {
-  slime: { hp: 30, speed: 2.0, damage: 7, attackRange: 0.9, attackCooldown: 1.4, windup: 0.5, exp: 15 },
-  turret: { hp: 50, speed: 0, damage: 8, attackRange: 6.5, attackCooldown: 2.2, windup: 0.8, exp: 15 },
+  slime: { hp: 25, speed: 2.0, damage: 6, attackRange: 0.9, attackCooldown: 1.8, windup: 0.5, exp: 15 },
+  turret: { hp: 50, speed: 0, damage: 7, attackRange: 6.5, attackCooldown: 2.2, windup: 0.8, exp: 15 },
 } as const;
 export type MobKind = keyof typeof MOB_DEFS;

@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+      - name: Bot soak (8 bots, 60s, stability)
+        run: pnpm soak -- --bots 8 --seconds 60 --seed 42
+      - name: Bot solve (4 bots must reach the exit, seed 7)
+        run: pnpm soak -- --bots 4 --seconds 150 --seed 7 --solve

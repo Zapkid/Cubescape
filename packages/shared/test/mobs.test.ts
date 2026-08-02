@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { MOB_DEFS } from "../src/constants.js";
 import { stepMob, type MobSim, type MobTargetView } from "../src/rules/mobs.js";
 
 const noWalls = () => false;
@@ -47,7 +48,11 @@ describe("mob AI state machine", () => {
     m = r.mob;
     const strike = stepMob(m, [t], noWalls, m.stateUntil, 1 / 20);
     expect(strike.effects).toContainEqual(
-      expect.objectContaining({ type: "damagePlayer", playerId: "p1", amount: 7 }),
+      expect.objectContaining({
+        type: "damagePlayer",
+        playerId: "p1",
+        amount: MOB_DEFS.slime.damage,
+      }),
     );
     expect(strike.mob.ai).toBe("cooldown");
   });
@@ -105,7 +110,7 @@ describe("mob AI state machine", () => {
     m = r.mob;
     const strike = stepMob(m, [t], noWalls, m.stateUntil, 1 / 20);
     expect(strike.effects).toContainEqual(
-      expect.objectContaining({ type: "damagePlayer", amount: 8 }),
+      expect.objectContaining({ type: "damagePlayer", amount: MOB_DEFS.turret.damage }),
     );
   });
 });
