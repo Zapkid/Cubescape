@@ -49,6 +49,7 @@ interface StateView {
   seed: number;
   tick: number;
   exit: string;
+  genCaps: string;
   players: Map<string, PlayerView>;
   rooms: Map<string, RoomView>;
 }
@@ -174,23 +175,34 @@ export class Bot {
   }
 
   private buildPlan(s: StateView): void {
-    const chars: CharId[] = [];
-    s.players.forEach((p) => {
-      const cid = (p as unknown as { charId?: string }).charId;
-      if (cid === "brute" || cid === "scout" || cid === "tinker") chars.push(cid);
-    });
-    if (chars.length === 0) chars.push(this.opts.charId);
-    const mights = chars.map((c) => CHARACTERS[c].might).sort((a, b) => b - a);
-    const wits = chars.map((c) => CHARACTERS[c].wits).sort((a, b) => b - a);
-    const top2 = (arr: number[]) => (arr[0] ?? 0) + (arr.length > 1 ? arr[1]! : 0);
-    const caps: SolverCaps = {
-      might: top2(mights),
-      wits: top2(wits),
-      players: chars.length,
-      hasBrute: chars.includes("brute"),
-      hasScout: chars.includes("scout"),
-      hasTinker: chars.includes("tinker"),
-    };
+    let caps: SolverCaps | null = null;
+    // the server publishes the caps it generated with — the only correct spec input
+    if (s.genCaps) {
+      try {
+        caps = JSON.parse(s.genCaps) as SolverCaps;
+      } catch {
+        caps = null;
+      }
+    }
+    if (!caps) {
+      const chars: CharId[] = [];
+      s.players.forEach((p) => {
+        const cid = (p as unknown as { charId?: string }).charId;
+        if (cid === "brute" || cid === "scout" || cid === "tinker") chars.push(cid);
+      });
+      if (chars.length === 0) chars.push(this.opts.charId);
+      const mights = chars.map((c) => CHARACTERS[c].might).sort((a, b) => b - a);
+      const wits = chars.map((c) => CHARACTERS[c].wits).sort((a, b) => b - a);
+      const top2 = (arr: number[]) => (arr[0] ?? 0) + (arr.length > 1 ? arr[1]! : 0);
+      caps = {
+        might: top2(mights),
+        wits: top2(wits),
+        players: chars.length,
+        hasBrute: chars.includes("brute"),
+        hasScout: chars.includes("scout"),
+        hasTinker: chars.includes("tinker"),
+      };
+    }
     this.spec = generateCube(s.seed, caps);
     // visit rooms in discovery order, ending with the exit path
     this.itinerary = [

@@ -116,6 +116,8 @@ export class MatchState extends Schema {
   /** team map knowledge: coordId -> "templateId|archetype|N:key,E:open,..." */
   @type({ map: "string" }) revealed = new MapSchema<string>();
   @type("string") matchResult = "";
+  /** JSON SolverCaps used at generation — the ground truth for bots/replays */
+  @type("string") genCaps = "";
   @type("number") startedTick = 0;
   @type("number") endedTick = 0;
 }

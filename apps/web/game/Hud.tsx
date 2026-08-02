@@ -48,6 +48,7 @@ function snapshot(net: NetClient): Snapshot {
 
 export function Hud({ net }: { net: NetClient }) {
   const [snap, setSnap] = useState<Snapshot>(() => snapshot(net));
+  const [finalSnap, setFinalSnap] = useState<Snapshot | null>(null);
   const feed = useGame((s) => s.feed);
   const connected = useGame((s) => s.connected);
   const connectionError = useGame((s) => s.connectionError);
@@ -56,9 +57,17 @@ export function Hud({ net }: { net: NetClient }) {
   const interactHint = useGame((s) => s.interactHint);
 
   useEffect(() => {
-    const t = setInterval(() => setSnap(snapshot(net)), 120);
+    const t = setInterval(() => {
+      const s = snapshot(net);
+      setSnap(s);
+      if (s.phase === "complete") setFinalSnap(s);
+    }, 120);
     return () => clearInterval(t);
   }, [net]);
+
+  // once the match ended, the scoreboard is the terminal screen — even after
+  // the room disposes and the socket drops
+  if (finalSnap) return <Scoreboard snap={finalSnap} />;
 
   if (!connected && connectionError) {
     return (

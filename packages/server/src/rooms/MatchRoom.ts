@@ -161,6 +161,7 @@ export class MatchRoom extends Room<MatchState> {
     const caps = this.partyCaps();
     const seed = this.requestedSeed ?? Math.floor(Math.random() * 2 ** 31);
     const spec = generateCube(seed, caps);
+    this.state.genCaps = JSON.stringify(caps);
     this.sim.buildWorld(spec);
     if (process.env.CUBE_DEBUG) {
       console.log(renderCubeAscii(spec));
