@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
-import { Text } from "@react-three/drei";
+import { Billboard, Text } from "@react-three/drei";
 import * as THREE from "three";
 import {
   ARCHETYPE_LIGHTING,
@@ -833,12 +833,60 @@ function Terminal({
   );
 }
 
+/** the teaser's EKG pulse, built from thin emissive box segments */
+const EKG_POINTS: [number, number][] = [
+  [-0.55, 0],
+  [-0.22, 0],
+  [-0.14, 0.09],
+  [-0.02, -0.2],
+  [0.1, 0.3],
+  [0.2, -0.06],
+  [0.28, 0],
+  [0.55, 0],
+];
+
+function EkgPulse({ color = "#4ade80", scale = 1 }: { color?: string; scale?: number }) {
+  const group = useRef<THREE.Group>(null);
+  const segments = useMemo(() => {
+    const out: { cx: number; cy: number; len: number; angle: number }[] = [];
+    for (let i = 0; i < EKG_POINTS.length - 1; i++) {
+      const [x1, y1] = EKG_POINTS[i]!;
+      const [x2, y2] = EKG_POINTS[i + 1]!;
+      out.push({
+        cx: (x1 + x2) / 2,
+        cy: (y1 + y2) / 2,
+        len: Math.hypot(x2 - x1, y2 - y1) + 0.02,
+        angle: Math.atan2(y2 - y1, x2 - x1),
+      });
+    }
+    return out;
+  }, []);
+  useFrame(({ clock }) => {
+    if (!group.current) return;
+    const beat = Math.max(0, Math.sin(clock.elapsedTime * 3.4));
+    group.current.children.forEach((c) => {
+      const mat = (c as THREE.Mesh).material as THREE.MeshStandardMaterial;
+      mat.emissiveIntensity = 0.9 + beat * beat * 1.8;
+    });
+  });
+  return (
+    <group ref={group} scale={scale}>
+      {segments.map((s, i) => (
+        <mesh key={i} position={[s.cx, s.cy, 0]} rotation={[0, 0, s.angle]}>
+          <boxGeometry args={[s.len, 0.035, 0.035]} />
+          <meshStandardMaterial color={color} emissive={color} emissiveIntensity={1.2} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
 function Beacon({ x, z }: { x: number; z: number }) {
   const ref = useRef<THREE.Mesh>(null);
   useFrame(({ clock }) => {
     if (ref.current) {
       const mat = ref.current.material as THREE.MeshStandardMaterial;
-      mat.emissiveIntensity = 1.4 + Math.sin(clock.elapsedTime * 2.4) * 0.6;
+      mat.emissiveIntensity = 1.4 + Math.sin(clock.elapsedTime * 3.4) * 0.6;
     }
   });
   return (
@@ -851,6 +899,10 @@ function Beacon({ x, z }: { x: number; z: number }) {
         <sphereGeometry args={[0.22, 12, 12]} />
         <meshStandardMaterial color="#fbbf24" emissive="#fbbf24" emissiveIntensity={1.4} />
       </mesh>
+      {/* floating heartbeat hologram — this room keeps you alive */}
+      <Billboard position={[0, 2.15, 0]}>
+        <EkgPulse color="#4ade80" scale={0.9} />
+      </Billboard>
       <pointLight position={[0, 1.6, 0]} color="#fbbf24" intensity={4} distance={6} />
     </group>
   );

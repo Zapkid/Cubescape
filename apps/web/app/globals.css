@@ -148,7 +148,38 @@ input {
   gap: 18px;
 }
 .hp-wrap { width: 260px; }
-.hp-label { font-size: 13px; margin-bottom: 4px; }
+.hp-label {
+  font-size: 13px;
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ekg polyline {
+  stroke-dasharray: 46 84;
+  stroke-dashoffset: 130;
+  animation: ekgSweep 1.5s linear infinite;
+  filter: drop-shadow(0 0 3px currentColor);
+}
+@keyframes ekgSweep {
+  to { stroke-dashoffset: 0; }
+}
+
+/* ---------- pixel wordmark ---------- */
+.logo-mark {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+  filter: drop-shadow(0 0 26px rgba(167, 139, 250, 0.35));
+}
+.logo-mark.centered { align-items: center; }
+.find-exit {
+  font-size: 12px;
+  letter-spacing: 0.52em;
+  color: #cbd5e1;
+  text-indent: 0.52em;
+}
 .hp-bar {
   height: 14px;
   background: #14141f;

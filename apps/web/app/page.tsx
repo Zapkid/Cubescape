@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { PixelLogo } from "../game/PixelLogo";
 
 function dailyCode(): string {
   const d = new Date();
@@ -70,7 +71,10 @@ export default function Home() {
               ))}
             </div>
           </div>
-          <h1 className="logo">CUBESCAPE</h1>
+          <h1 className="logo-mark">
+            <PixelLogo height={54} />
+            <span className="find-exit">FIND THE EXIT</span>
+          </h1>
           <p className="tagline">
             You and your friends are trapped in a 3D cube of deadly puzzle rooms.
             <br />

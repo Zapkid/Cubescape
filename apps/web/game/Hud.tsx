@@ -10,6 +10,7 @@ import {
 } from "@cubescape/shared";
 import type { NetClient, PlayerView, StateView } from "./net";
 import { useGame } from "./store";
+import { PixelLogo } from "./PixelLogo";
 
 interface Snapshot {
   phase: string;
@@ -123,7 +124,10 @@ export function Hud({ net }: { net: NetClient }) {
       <div className="hud-bottom">
         <div className="hp-wrap">
           <div className="hp-label">
-            {def?.name ?? "?"} · {Math.ceil(me.hp)}/{me.maxHp}
+            <Ekg ratio={me.hp / Math.max(1, me.maxHp)} downed={me.downed} />
+            <span>
+              {def?.name ?? "?"} · {Math.ceil(me.hp)}/{me.maxHp}
+            </span>
           </div>
           <div className="hp-bar">
             <div
@@ -168,6 +172,28 @@ export function Hud({ net }: { net: NetClient }) {
         </div>
       </div>
     </div>
+  );
+}
+
+/** the teaser's heartbeat motif: EKG trace that speeds up and reddens as HP drops */
+function Ekg({ ratio, downed }: { ratio: number; downed: boolean }) {
+  const color = downed ? "#f43f5e" : ratio > 0.6 ? "#4ade80" : ratio > 0.3 ? "#f59e0b" : "#f43f5e";
+  const duration = downed ? "3s" : ratio > 0.6 ? "1.5s" : ratio > 0.3 ? "1s" : "0.55s";
+  const points = downed
+    ? "0,12 64,12" // flatline
+    : "0,12 16,12 21,12 25,7 29,19 33,2 37,17 41,12 64,12";
+  return (
+    <svg className="ekg" viewBox="0 0 64 24" width="46" height="18" aria-hidden>
+      <polyline
+        points={points}
+        fill="none"
+        stroke={color}
+        strokeWidth="2.2"
+        strokeLinejoin="round"
+        strokeLinecap="round"
+        style={{ animationDuration: duration }}
+      />
+    </svg>
   );
 }
 
@@ -265,7 +291,10 @@ function Lobby({ net, snap }: { net: NetClient; snap: Snapshot }) {
   return (
     <div className="overlay center lobby">
       <div className="panel wide">
-        <h1 className="logo">CUBESCAPE</h1>
+        <h1 className="logo-mark centered">
+          <PixelLogo height={40} />
+          <span className="find-exit">FIND THE EXIT</span>
+        </h1>
         <p className="dim">
           Pick a runner. The cube is generated when everyone is ready — it will be
           solvable for <em>this</em> team. Probably.
