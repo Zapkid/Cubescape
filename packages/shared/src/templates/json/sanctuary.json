@@ -1,0 +1,38 @@
+{
+  "id": "sanctuary",
+  "version": 1,
+  "archetype": "sanctuary",
+  "displayName": "Still Point",
+  "grid": { "w": 9, "d": 9, "h": 5 },
+  "tiles": [
+    ".........",
+    ".........",
+    ".........",
+    ".........",
+    ".........",
+    ".........",
+    "...PL....",
+    ".........",
+    "........."
+  ],
+  "tileLegend": { ".": "floor", "L": "lift", "P": "plate" },
+  "props": [
+    { "type": "beacon", "cell": [4, 4], "id": "beacon" },
+    { "type": "crate", "cell": [1, 6] }
+  ],
+  "doorSlots": [
+    { "allowedGates": ["open", "key"], "cell": [4, 0] },
+    { "allowedGates": ["open", "key"], "cell": [8, 4] },
+    { "allowedGates": ["open", "key"], "cell": [4, 8] },
+    { "allowedGates": ["open", "key"], "cell": [0, 4] },
+    { "allowedGates": ["lift"], "cell": [4, 6] },
+    { "allowedGates": ["open"], "cell": [4, 2] }
+  ],
+  "logicId": "sanctuary_heal",
+  "logicParams": { "healPerSecond": 5, "radius": 3 },
+  "lighting": { "ambient": "#1f1a0e", "point": "#fbbf24", "intensity": 1.6 },
+  "spawnCells": [[4, 5], [3, 4], [5, 4]],
+  "weight": 0.1,
+  "maxPerCube": 1,
+  "minPerCube": 1
+}

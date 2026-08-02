@@ -1,0 +1,43 @@
+{
+  "id": "combat_turret",
+  "version": 1,
+  "archetype": "combat",
+  "displayName": "Kill Box",
+  "grid": { "w": 9, "d": 9, "h": 5 },
+  "tiles": [
+    ".........",
+    ".........",
+    ".........",
+    ".........",
+    ".........",
+    ".........",
+    ".........",
+    ".........",
+    "........."
+  ],
+  "tileLegend": { ".": "floor" },
+  "props": [
+    { "type": "pillar", "cell": [3, 2] },
+    { "type": "pillar", "cell": [5, 6] },
+    { "type": "crate", "cell": [2, 4] },
+    { "type": "crate", "cell": [6, 4] },
+    { "type": "mob_spawn", "cell": [4, 4], "id": "t1", "meta": { "kind": "turret" } },
+    { "type": "mob_spawn", "cell": [2, 7], "id": "m1", "meta": { "kind": "slime" } },
+    { "type": "mob_spawn", "cell": [6, 1], "id": "m2", "meta": { "kind": "slime" } }
+  ],
+  "doorSlots": [
+    { "allowedGates": ["open", "key", "stat", "plates", "objective"], "cell": [4, 0] },
+    { "allowedGates": ["open", "key", "stat", "plates", "objective"], "cell": [8, 4] },
+    { "allowedGates": ["open", "key", "stat", "plates", "objective"], "cell": [4, 8] },
+    { "allowedGates": ["open", "key", "stat", "plates", "objective"], "cell": [0, 4] },
+    null,
+    null
+  ],
+  "logicId": "combat_clear",
+  "logicParams": {},
+  "lighting": { "ambient": "#241a0e", "point": "#f59e0b", "intensity": 1.4 },
+  "spawnCells": [[1, 1], [7, 7], [1, 7]],
+  "weight": 1.0,
+  "maxPerCube": 2,
+  "minPerCube": 0
+}

@@ -1,0 +1,17 @@
+{
+  "name": "@cubescape/botclient",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "soak": "tsx src/soak.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@cubescape/shared": "workspace:*",
+    "colyseus.js": "^0.15.26"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2"
+  }
+}

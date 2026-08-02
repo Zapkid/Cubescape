@@ -1,0 +1,44 @@
+{
+  "id": "hazard_spikes",
+  "version": 1,
+  "archetype": "hazard",
+  "displayName": "Piston Gallery",
+  "grid": { "w": 9, "d": 9, "h": 5 },
+  "tiles": [
+    ".........",
+    ".........",
+    ".^^^^^^^.",
+    ".........",
+    ".^^^^^^^.",
+    ".........",
+    ".^^^^^^^.",
+    "....C....",
+    "........."
+  ],
+  "tileLegend": { ".": "floor", "^": "spike", "C": "cracked" },
+  "props": [],
+  "doorSlots": [
+    { "allowedGates": ["open", "key", "stat", "plates"], "cell": [4, 0] },
+    { "allowedGates": ["open", "key", "stat", "plates"], "cell": [8, 4] },
+    { "allowedGates": ["open", "key", "stat", "plates"], "cell": [4, 8] },
+    { "allowedGates": ["open", "key", "stat", "plates"], "cell": [0, 4] },
+    null,
+    null
+  ],
+  "logicId": "spikes_pattern",
+  "logicParams": {
+    "period": 2.4,
+    "rows": [
+      { "z": 2, "phase": 0 },
+      { "z": 4, "phase": 0.33 },
+      { "z": 6, "phase": 0.66 }
+    ],
+    "activeFraction": 0.45,
+    "damage": 10
+  },
+  "lighting": { "ambient": "#2e0e12", "point": "#f43f5e", "intensity": 1.5 },
+  "spawnCells": [[1, 1], [7, 1], [4, 1]],
+  "weight": 1.2,
+  "maxPerCube": 3,
+  "minPerCube": 0
+}

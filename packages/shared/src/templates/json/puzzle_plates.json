@@ -1,0 +1,52 @@
+{
+  "id": "puzzle_plates",
+  "version": 1,
+  "archetype": "puzzle",
+  "displayName": "Twin Plates",
+  "grid": { "w": 9, "d": 9, "h": 5 },
+  "tiles": [
+    ".........",
+    ".........",
+    "..#...#..",
+    "..#.P.#..",
+    "..#XXX#..",
+    "..#.P.#..",
+    "..#...#..",
+    ".........",
+    "........."
+  ],
+  "tileLegend": {
+    ".": "floor",
+    "#": "floor",
+    "P": "plate",
+    "X": "pit"
+  },
+  "props": [
+    { "type": "pillar", "cell": [2, 2] },
+    { "type": "pillar", "cell": [6, 2] },
+    { "type": "pillar", "cell": [2, 6] },
+    { "type": "pillar", "cell": [6, 6] },
+    { "type": "wire_trace", "cell": [4, 3], "id": "wire_a", "meta": { "visibleTo": "tinker" } },
+    { "type": "wire_trace", "cell": [4, 5], "id": "wire_b", "meta": { "visibleTo": "tinker" } }
+  ],
+  "doorSlots": [
+    { "allowedGates": ["open", "key", "stat"], "cell": [4, 0] },
+    { "allowedGates": ["plates"], "cell": [8, 4] },
+    { "allowedGates": ["open", "key", "stat"], "cell": [4, 8] },
+    { "allowedGates": ["open", "key"], "cell": [0, 4] },
+    { "allowedGates": ["lift"], "cell": [4, 1] },
+    null
+  ],
+  "logicId": "plates_and_gate",
+  "logicParams": {
+    "plateCells": [[4, 3], [4, 5]],
+    "requiredSimultaneous": 2,
+    "targetFace": "E",
+    "holdFastCountsAs": 1
+  },
+  "lighting": { "ambient": "#0e2a2e", "point": "#2dd4bf", "intensity": 1.4 },
+  "spawnCells": [[1, 1], [7, 7], [1, 7], [7, 1]],
+  "weight": 1.5,
+  "maxPerCube": 3,
+  "minPerCube": 1
+}

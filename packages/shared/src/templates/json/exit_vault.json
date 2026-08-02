@@ -1,0 +1,41 @@
+{
+  "id": "exit_vault",
+  "version": 1,
+  "archetype": "exit",
+  "displayName": "Egress",
+  "grid": { "w": 9, "d": 9, "h": 5 },
+  "tiles": [
+    ".........",
+    ".........",
+    ".........",
+    ".........",
+    ".........",
+    ".........",
+    ".........",
+    ".........",
+    "........."
+  ],
+  "tileLegend": { ".": "floor" },
+  "props": [
+    { "type": "exit_terminal", "cell": [4, 4], "id": "terminal" },
+    { "type": "pillar", "cell": [2, 2] },
+    { "type": "pillar", "cell": [6, 6] },
+    { "type": "mob_spawn", "cell": [1, 1], "id": "g1", "meta": { "kind": "slime", "trigger": "objective" } },
+    { "type": "mob_spawn", "cell": [7, 7], "id": "g2", "meta": { "kind": "slime", "trigger": "objective" } }
+  ],
+  "doorSlots": [
+    { "allowedGates": ["open", "key", "stat", "plates", "objective"], "cell": [4, 0] },
+    { "allowedGates": ["open", "key", "stat", "plates", "objective"], "cell": [8, 4] },
+    { "allowedGates": ["open", "key", "stat", "plates", "objective"], "cell": [4, 8] },
+    { "allowedGates": ["open", "key", "stat", "plates", "objective"], "cell": [0, 4] },
+    null,
+    { "allowedGates": ["open"], "cell": [4, 7] }
+  ],
+  "logicId": "exit_terminal",
+  "logicParams": { "channelSeconds": 5 },
+  "lighting": { "ambient": "#0e2e16", "point": "#4ade80", "intensity": 1.6 },
+  "spawnCells": [[1, 7], [7, 1]],
+  "weight": 0.1,
+  "maxPerCube": 1,
+  "minPerCube": 1
+}
