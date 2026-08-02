@@ -6,6 +6,7 @@ import dynamic from "next/dynamic";
 import { NetClient } from "../../../game/net";
 import { Hud } from "../../../game/Hud";
 import { attachInput } from "../../../game/input";
+import { useGame } from "../../../game/store";
 
 const GameCanvas = dynamic(
   () => import("../../../game/GameCanvas").then((m) => m.GameCanvas),
@@ -47,7 +48,10 @@ export default function MatchPage() {
         setStatus("up");
         attachInput();
         // dev/e2e introspection hook
-        (window as unknown as Record<string, unknown>).__cubescape = { net };
+        (window as unknown as Record<string, unknown>).__cubescape = {
+          net,
+          setLook: (yaw: number, pitch: number) => useGame.getState().setLook(yaw, pitch),
+        };
       })
       .catch(() => setStatus("failed"));
     return () => net.dispose();

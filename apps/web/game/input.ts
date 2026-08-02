@@ -59,11 +59,12 @@ export function sampleInput(yaw: number): FrameInput {
   if (keys.has("KeyS") || keys.has("ArrowDown")) fwd -= 1;
   if (keys.has("KeyD") || keys.has("ArrowRight")) strafe += 1;
   if (keys.has("KeyA") || keys.has("ArrowLeft")) strafe -= 1;
-  // forward = (sin yaw, cos yaw); right = (cos yaw, -sin yaw)
+  // forward = (sin yaw, cos yaw); screen-right = (-cos yaw, sin yaw)
+  // (three.js camera looking along +forward puts world -x on screen right at yaw 0)
   const sin = Math.sin(yaw);
   const cos = Math.cos(yaw);
-  let mx = sin * fwd + cos * strafe;
-  let mz = cos * fwd - sin * strafe;
+  let mx = sin * fwd - cos * strafe;
+  let mz = cos * fwd + sin * strafe;
   const mag = Math.hypot(mx, mz);
   if (mag > 1) {
     mx /= mag;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Text } from "@react-three/drei";
 import * as THREE from "three";
@@ -92,7 +92,7 @@ export function RoomView3D({
         distance={18}
         decay={1.3}
       />
-      <Floor tiles={tiles} room={room} />
+      <Floor tiles={tiles} room={room} net={net} />
       <Walls room={room} />
       <Doors room={room} myCharId={myCharId} />
       <Props template={template} room={room} myCharId={myCharId} net={net} />
@@ -102,7 +102,21 @@ export function RoomView3D({
   );
 }
 
-function Floor({ tiles, room }: { tiles: TileType[][]; room: RoomView }) {
+/** deterministic tiny tint variation so floors don't read as one flat slab */
+function cellShade(x: number, z: number): number {
+  const h = Math.sin(x * 127.1 + z * 311.7) * 43758.5453;
+  return 0.9 + (h - Math.floor(h)) * 0.14 + ((x + z) % 2) * 0.05;
+}
+
+function Floor({
+  tiles,
+  room,
+  net,
+}: {
+  tiles: TileType[][];
+  room: RoomView;
+  net: NetClient;
+}) {
   const overrides = new Set(room.walkableOverrides);
   const holes = new Set(room.breachHoles);
   const cells = useMemo(() => {
@@ -121,29 +135,87 @@ function Floor({ tiles, room }: { tiles: TileType[][]; room: RoomView }) {
         const breached = holes.has(c.key);
         if ((c.t === "pit" || c.t === "void") && !bridged) {
           return (
-            <mesh key={c.key} position={[c.x + 0.5, -0.9, c.z + 0.5]}>
-              <boxGeometry args={[1, 1.6, 1]} />
-              <meshStandardMaterial color="#04040a" />
-            </mesh>
+            <group key={c.key}>
+              <mesh position={[c.x + 0.5, -0.9, c.z + 0.5]}>
+                <boxGeometry args={[1, 1.6, 1]} />
+                <meshStandardMaterial color="#04040a" />
+              </mesh>
+              {/* hazard rim so the drop reads from a distance */}
+              <mesh position={[c.x + 0.5, 0.005, c.z + 0.5]} rotation={[-Math.PI / 2, 0, 0]}>
+                <ringGeometry args={[0.42, 0.5, 4]} />
+                <meshStandardMaterial color="#38bdf8" emissive="#38bdf8" emissiveIntensity={0.5} transparent opacity={0.5} />
+              </mesh>
+            </group>
           );
         }
         if (breached) return null; // open hole
-        const color = bridged ? "#4a3f2e" : TILE_COLORS[c.t] ?? "#2a2a3a";
-        const isAccent = c.t !== "floor";
+        const shade = cellShade(c.x, c.z);
+        const base = new THREE.Color(bridged ? "#4a3f2e" : TILE_COLORS[c.t] ?? "#2a2a3a");
+        base.multiplyScalar(shade);
+        const isAccent = c.t !== "floor" && !bridged;
         return (
-          <mesh key={c.key} position={[c.x + 0.5, -0.1, c.z + 0.5]} receiveShadow>
-            <boxGeometry args={[0.98, 0.2, 0.98]} />
-            <meshStandardMaterial
-              color={color}
-              emissive={isAccent ? color : "#000000"}
-              emissiveIntensity={isAccent ? 0.45 : 0}
-            />
-          </mesh>
+          <group key={c.key}>
+            <mesh position={[c.x + 0.5, -0.1, c.z + 0.5]} receiveShadow>
+              <boxGeometry args={[0.96, 0.2, 0.96]} />
+              <meshStandardMaterial
+                color={base}
+                emissive={isAccent ? TILE_COLORS[c.t] : "#000000"}
+                emissiveIntensity={isAccent ? 0.4 : 0}
+                roughness={0.85}
+              />
+            </mesh>
+            {c.t === "plate" ? <PlateDisc x={c.x} z={c.z} room={room} net={net} /> : null}
+            {c.t === "lift" ? (
+              <mesh position={[c.x + 0.5, 0.03, c.z + 0.5]}>
+                <cylinderGeometry args={[0.36, 0.4, 0.06, 16]} />
+                <meshStandardMaterial color="#173049" emissive="#38bdf8" emissiveIntensity={0.25} />
+              </mesh>
+            ) : null}
+            {c.t === "gas_vent" ? (
+              <mesh position={[c.x + 0.5, 0.015, c.z + 0.5]} rotation={[-Math.PI / 2, 0, 0]}>
+                <circleGeometry args={[0.3, 8]} />
+                <meshStandardMaterial color="#1c2a12" emissive="#66a832" emissiveIntensity={0.9} />
+              </mesh>
+            ) : null}
+          </group>
         );
       })}
       {/* lift glow ring when powered */}
       <LiftGlow tiles={tiles} room={room} />
     </group>
+  );
+}
+
+/** pressure plate that physically depresses when someone stands on it */
+function PlateDisc({
+  x,
+  z,
+  room,
+  net,
+}: {
+  x: number;
+  z: number;
+  room: RoomView;
+  net: NetClient;
+}) {
+  const ref = useRef<THREE.Mesh>(null);
+  useFrame(() => {
+    if (!ref.current) return;
+    let pressed = false;
+    net.state?.players.forEach((p) => {
+      if (p.roomCoord !== room.coordId) return;
+      if (Math.floor(p.x) === x && Math.floor(p.z) === z) pressed = true;
+    });
+    const targetY = pressed ? 0.015 : 0.055;
+    ref.current.position.y += (targetY - ref.current.position.y) * 0.3;
+    const mat = ref.current.material as THREE.MeshStandardMaterial;
+    mat.emissiveIntensity = pressed ? 1.6 : 0.5;
+  });
+  return (
+    <mesh ref={ref} position={[x + 0.5, 0.055, z + 0.5]}>
+      <cylinderGeometry args={[0.3, 0.34, 0.07, 16]} />
+      <meshStandardMaterial color="#134238" emissive="#2dd4bf" emissiveIntensity={0.5} />
+    </mesh>
   );
 }
 
@@ -208,10 +280,25 @@ function Walls({ room }: { room: RoomView }) {
   return (
     <group>
       {segments.map((s, i) => (
-        <mesh key={i} position={[s.x, WALL_H / 2, s.z]}>
-          <boxGeometry args={[s.w, WALL_H, s.d]} />
-          <meshStandardMaterial color="#1c1c28" />
-        </mesh>
+        <group key={i}>
+          <mesh position={[s.x, WALL_H / 2, s.z]}>
+            <boxGeometry args={[s.w, WALL_H, s.d]} />
+            <meshStandardMaterial color="#1c1c28" roughness={0.9} />
+          </mesh>
+          {/* skirting + glow trim line give the walls scale */}
+          <mesh position={[s.x, 0.14, s.z]}>
+            <boxGeometry args={[s.w + 0.02, 0.28, s.d + 0.02]} />
+            <meshStandardMaterial color="#242434" />
+          </mesh>
+          <mesh position={[s.x, 2.18, s.z]}>
+            <boxGeometry args={[s.w + 0.02, 0.05, s.d + 0.02]} />
+            <meshStandardMaterial
+              color="#2a3550"
+              emissive="#4a6a9a"
+              emissiveIntensity={0.5}
+            />
+          </mesh>
+        </group>
       ))}
       {/* ceiling */}
       <mesh position={[4.5, WALL_H + 0.1, 4.5]}>
@@ -450,25 +537,49 @@ function Lever({
   room: RoomView;
 }) {
   const lamp = typeof p.meta.lamp === "number" ? p.meta.lamp : 0;
+  const handle = useRef<THREE.Group>(null);
+  const lampRef = useRef<THREE.Mesh>(null);
+
+  useFrame((_, dt) => {
+    // pulled when this lever's sequence position has been locked in;
+    // wrong pulls reset logicProgress and every handle springs back up
+    const pulled = lamp > 0 && room.logicProgress >= lamp;
+    if (handle.current) {
+      const target = pulled ? 1.15 : -0.6;
+      handle.current.rotation.x +=
+        (target - handle.current.rotation.x) * Math.min(1, dt * 10);
+    }
+    if (lampRef.current) {
+      const mat = lampRef.current.material as THREE.MeshStandardMaterial;
+      mat.emissiveIntensity +=
+        ((pulled ? 2.2 : 0.12) - mat.emissiveIntensity) * Math.min(1, dt * 8);
+    }
+  });
+
   return (
     <group position={[x, 0, z]}>
       <mesh position={[0, 0.45, 0]}>
         <boxGeometry args={[0.42, 0.9, 0.42]} />
         <meshStandardMaterial color="#33334a" />
       </mesh>
-      <mesh position={[0, 1.0, 0]} rotation={[0.5, 0, 0]}>
-        <cylinderGeometry args={[0.045, 0.045, 0.6, 6]} />
-        <meshStandardMaterial color="#c0c0d0" />
-      </mesh>
+      {/* hinged handle: pivots at the top of the housing */}
+      <group ref={handle} position={[0, 0.9, 0]} rotation={[-0.6, 0, 0]}>
+        <mesh position={[0, 0.26, 0]}>
+          <cylinderGeometry args={[0.04, 0.05, 0.52, 6]} />
+          <meshStandardMaterial color="#c0c0d0" />
+        </mesh>
+        <mesh position={[0, 0.54, 0]}>
+          <sphereGeometry args={[0.07, 8, 8]} />
+          <meshStandardMaterial color="#e2574c" />
+        </mesh>
+      </group>
       <Text position={[0, 1.5, 0]} fontSize={0.34} color="#2dd4bf" anchorX="center">
         {String(lamp)}
       </Text>
-      {room.logicProgress >= lamp && lamp > 0 ? (
-        <mesh position={[0, 1.22, 0]}>
-          <sphereGeometry args={[0.09, 8, 8]} />
-          <meshStandardMaterial color="#2dd4bf" emissive="#2dd4bf" emissiveIntensity={2} />
-        </mesh>
-      ) : null}
+      <mesh ref={lampRef} position={[0, 1.02, 0.24]}>
+        <sphereGeometry args={[0.07, 8, 8]} />
+        <meshStandardMaterial color="#0f3d33" emissive="#2dd4bf" emissiveIntensity={0.12} />
+      </mesh>
     </group>
   );
 }
@@ -512,15 +623,33 @@ function Terminal({
   net: NetClient;
 }) {
   const screen = useRef<THREE.Mesh>(null);
+  const ringRef = useRef<THREE.Mesh>(null);
+  const [progress, setProgress] = useState(0);
+
   useFrame(({ clock }) => {
-    if (!screen.current) return;
-    const mat = screen.current.material as THREE.MeshStandardMaterial;
-    const s = net.state;
-    const active = !room.cleared;
-    mat.emissiveIntensity = active ? 1 + Math.sin(clock.elapsedTime * 5) * 0.5 : 0.25;
-    mat.emissive.set(room.cleared ? "#4ade80" : kind === "exit_terminal" ? "#4ade80" : "#f43f5e");
-    void s;
+    const liveRoom = net.state?.rooms.get(room.coordId) ?? room;
+    const pct = liveRoom.cleared ? 100 : liveRoom.logicProgress;
+    if (pct !== progress) setProgress(pct);
+    if (screen.current) {
+      const mat = screen.current.material as THREE.MeshStandardMaterial;
+      const active = !liveRoom.cleared;
+      const channeling = active && pct > 0;
+      mat.emissiveIntensity = channeling
+        ? 1.6 + Math.sin(clock.elapsedTime * 14) * 0.7
+        : active
+          ? 1 + Math.sin(clock.elapsedTime * 5) * 0.5
+          : 0.25;
+      mat.emissive.set(
+        liveRoom.cleared || kind === "exit_terminal" ? "#4ade80" : "#f43f5e",
+      );
+    }
+    if (ringRef.current) {
+      ringRef.current.rotation.z = -Math.PI / 2; // start at 12 o'clock
+      ringRef.current.visible = pct > 0 && !liveRoom.cleared;
+    }
   });
+
+  const frac = Math.max(0.001, Math.min(1, progress / 100));
   return (
     <group position={[x, 0, z]}>
       <mesh position={[0, 0.55, 0]}>
@@ -531,9 +660,30 @@ function Terminal({
         <boxGeometry args={[0.5, 0.36, 0.55]} />
         <meshStandardMaterial color="#0a0a12" emissive="#f43f5e" emissiveIntensity={1} />
       </mesh>
+      {/* channel progress ring on the floor around the terminal */}
+      <mesh
+        ref={ringRef}
+        position={[0, 0.02, 0]}
+        rotation={[-Math.PI / 2, 0, 0]}
+        visible={false}
+      >
+        <ringGeometry args={[0.75, 0.92, 48, 1, 0, Math.PI * 2 * frac]} />
+        <meshStandardMaterial
+          color="#4ade80"
+          emissive="#4ade80"
+          emissiveIntensity={1.6}
+          side={THREE.DoubleSide}
+          transparent
+          opacity={0.9}
+        />
+      </mesh>
       {!room.cleared ? (
         <Text position={[0, 1.6, 0]} fontSize={0.2} color="#ffffff" anchorX="center">
-          {kind === "exit_terminal" ? "hold [E] to escape" : "hold [E] to vent"}
+          {progress > 0
+            ? `${kind === "exit_terminal" ? "ESCAPING" : "VENTING"} ${progress}%`
+            : kind === "exit_terminal"
+              ? "hold [E] to escape"
+              : "hold [E] to vent"}
         </Text>
       ) : null}
     </group>

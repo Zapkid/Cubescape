@@ -27,6 +27,7 @@ export interface DoorView {
   open: boolean;
   cellX: number;
   cellZ: number;
+  ownerCoord: string;
 }
 export interface MobView {
   id: string;
@@ -38,6 +39,7 @@ export interface MobView {
   ai: string;
   friendly: boolean;
   stateUntil: number;
+  targetId: string;
 }
 export interface DeployableView {
   id: string;
@@ -128,6 +130,10 @@ export class NetClient {
   onEvent: ((e: ServerEvent) => void) | null = null;
   /** dev/e2e: when set, overrides sampled keyboard input (blur-proof driving) */
   autoInput: { mx: number; mz: number; jump: boolean; hold: boolean } | null = null;
+  /** transient animation cues from server events: sessionId -> ms timestamp */
+  attackAnims = new Map<string, number>();
+  /** mobId -> ms timestamp of last damage taken (white hit-flash) */
+  hitFlashes = new Map<string, number>();
 
   async connect(code: string, name: string, charId: string | null, seed?: number): Promise<void> {
     const url =
@@ -153,6 +159,12 @@ export class NetClient {
       for (const e of events) {
         const text = describeEvent(e);
         if (text) useGame.getState().pushFeed(text);
+        if (e.t === "ability" && typeof e.sid === "string") {
+          this.attackAnims.set(e.sid, Date.now());
+        }
+        if (e.t === "hit" && typeof e.mobId === "string") {
+          this.hitFlashes.set(e.mobId, Date.now());
+        }
         if (e.t === "ping") {
           useGame.getState().addPing({
             kind: String(e.kind),
@@ -333,7 +345,7 @@ export class NetClient {
     this.room?.send("interact", {});
   }
   ability(slot: number): void {
-    this.room?.send("ability", { slot });
+    this.room?.send("ability", { slot, yaw: useGame.getState().yaw });
   }
   selectChar(charId: string): void {
     this.room?.send("select", { charId });

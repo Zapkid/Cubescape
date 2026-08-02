@@ -61,7 +61,9 @@ input {
 }
 .overlay.center > * { pointer-events: auto; }
 .overlay.lobby { background: radial-gradient(circle at 50% 30%, #101024, #05050a); }
-.click-capture { background: rgba(5, 5, 10, 0.35); }
+/* must never swallow the click that requests pointer lock on the canvas */
+.click-capture { background: rgba(5, 5, 10, 0.35); pointer-events: none; }
+.click-capture > * { pointer-events: none !important; }
 
 .panel {
   background: rgba(14, 14, 26, 0.92);

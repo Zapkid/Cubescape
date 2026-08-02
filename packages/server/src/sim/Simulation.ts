@@ -212,7 +212,7 @@ export class Simulation {
     }
   }
 
-  useAbility(sessionId: string, slot: number): void {
+  useAbility(sessionId: string, slot: number, aimYaw?: number): void {
     const p = this.state.players.get(sessionId);
     if (!p || this.state.phase !== "running") return;
     const room = this.state.rooms.get(p.roomCoord);
@@ -237,7 +237,7 @@ export class Simulation {
     const below = neighborCoord(parseCoordId(p.roomCoord), "D");
     const ctx: AbilityCtx = {
       caster: this.rulePlayer(p),
-      yaw: p.yaw,
+      yaw: aimYaw ?? p.yaw,
       tick: this.state.tick,
       cooldownUntil: p.cooldowns[slot] ?? 0,
       doors: room.doors
@@ -257,7 +257,7 @@ export class Simulation {
     }
     p.cooldowns[slot] = result.cooldownUntil;
     this.applyEffects(result.effects, room, sessionId);
-    this.emit({ t: "ability", ability: abilityId, by: p.name, room: room.coordId });
+    this.emit({ t: "ability", ability: abilityId, by: p.name, sid: sessionId, room: room.coordId });
   }
 
   ping(sessionId: string, kind: string, x: number, z: number): void {
@@ -428,6 +428,16 @@ export class Simulation {
         });
         if (typeof scratch.progress === "number") {
           room.logicProgress = scratch.progress;
+        }
+        // channel rooms publish hold progress as a 0-100 percentage for the HUD
+        if (template.logicId === "exit_terminal" || template.logicId === "gas_room") {
+          const holdTicks = (scratch.holdTicks ?? {}) as Record<string, number>;
+          const needed =
+            ((template.logicParams.channelSeconds as number) ?? 5) * TICK_RATE;
+          const best = Math.max(0, ...Object.values(holdTicks));
+          room.logicProgress = room.cleared
+            ? 100
+            : Math.min(99, Math.round((best / needed) * 100));
         }
         this.applyEffects(result.effects, room, null);
       }

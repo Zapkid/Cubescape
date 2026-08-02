@@ -61,7 +61,7 @@ export class MatchRoom extends Room<MatchState> {
     this.onMessage("ability", (client, raw) => {
       const parsed = AbilityMsg.safeParse(raw);
       if (!parsed.success) return;
-      this.sim.useAbility(client.sessionId, parsed.data.slot);
+      this.sim.useAbility(client.sessionId, parsed.data.slot, parsed.data.yaw);
     });
     this.onMessage("select", (client, raw) => {
       const parsed = SelectCharMsg.safeParse(raw);

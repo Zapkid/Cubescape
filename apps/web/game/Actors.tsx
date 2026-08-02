@@ -59,6 +59,8 @@ export function Actors({ net, roomCoord }: { net: NetClient; roomCoord: string }
 function PlayerRig({ net, sessionId }: { net: NetClient; sessionId: string }) {
   const group = useRef<THREE.Group>(null);
   const body = useRef<THREE.Group>(null);
+  const armL = useRef<THREE.Group>(null);
+  const armR = useRef<THREE.Group>(null);
   const walkPhase = useRef(0);
   const smoothed = useRef<{ x: number; z: number; yaw: number } | null>(null);
   const isLocal = net.room?.sessionId === sessionId;
@@ -76,18 +78,24 @@ function PlayerRig({ net, sessionId }: { net: NetClient; sessionId: string }) {
     let tz = pl.z;
     let ty = pl.y;
     let tyaw = pl.yaw;
+    let moving = false;
     if (isLocal) {
       const g = useGame.getState();
       tx = g.px;
       tz = g.pz;
       ty = g.py;
       tyaw = g.yaw;
+      if (smoothed.current) {
+        moving = Math.hypot(tx - smoothed.current.x, tz - smoothed.current.z) > 0.004;
+      }
+      smoothed.current = { x: tx, z: tz, yaw: tyaw };
       group.current.position.set(tx, ty, tz);
       if (body.current) body.current.rotation.y = tyaw;
     } else {
       if (!smoothed.current) smoothed.current = { x: tx, z: tz, yaw: tyaw };
       const sm = smoothed.current;
       const k = Math.min(1, dt * 12);
+      moving = Math.hypot(tx - sm.x, tz - sm.z) > 0.01;
       sm.x += (tx - sm.x) * k;
       sm.z += (tz - sm.z) * k;
       let dyaw = tyaw - sm.yaw;
@@ -98,18 +106,28 @@ function PlayerRig({ net, sessionId }: { net: NetClient; sessionId: string }) {
       if (body.current) body.current.rotation.y = sm.yaw;
     }
 
-    // walk bobbing
-    const moving = isLocal
-      ? true
-      : smoothed.current
-        ? Math.hypot(tx - smoothed.current.x, tz - smoothed.current.z) > 0.01
-        : false;
-    walkPhase.current += dt * (moving ? 10 : 2);
+    walkPhase.current += dt * (moving ? 11 : 2);
+    const attackAge = Date.now() - (net.attackAnims.get(sessionId) ?? 0);
+    const attacking = attackAge < 240;
     if (body.current) {
       body.current.position.y = pl.downed
         ? 0.3
-        : 0.62 + Math.abs(Math.sin(walkPhase.current)) * 0.05;
-      body.current.rotation.x = pl.downed ? Math.PI / 2 : 0;
+        : 0.62 + (moving ? Math.abs(Math.sin(walkPhase.current)) * 0.06 : 0.01);
+      body.current.rotation.x = pl.downed
+        ? Math.PI / 2
+        : attacking
+          ? 0.28 * (1 - attackAge / 240) // forward lunge on any ability/strike
+          : moving
+            ? 0.07
+            : 0;
+    }
+    // arms: swing while walking, right arm jabs on attack
+    const swing = moving ? Math.sin(walkPhase.current) * 0.7 : 0.05;
+    if (armL.current) armL.current.rotation.x = swing;
+    if (armR.current) {
+      armR.current.rotation.x = attacking
+        ? -1.6 * (1 - attackAge / 240)
+        : -swing;
     }
   });
 
@@ -119,35 +137,74 @@ function PlayerRig({ net, sessionId }: { net: NetClient; sessionId: string }) {
   return (
     <group ref={group}>
       <group ref={body} position={[0, 0.62, 0]}>
-        {/* torso capsule */}
+        {/* torso */}
         <mesh castShadow>
-          <capsuleGeometry args={[0.26, 0.55, 6, 12]} />
+          <capsuleGeometry args={[0.24, 0.42, 6, 12]} />
           <meshStandardMaterial
             color={color}
             emissive={color}
-            emissiveIntensity={grappling ? 0.8 : 0.15}
+            emissiveIntensity={grappling ? 0.8 : 0.12}
           />
         </mesh>
-        {/* visor showing facing */}
-        <mesh position={[0, 0.32, 0.2]}>
-          <boxGeometry args={[0.3, 0.1, 0.12]} />
-          <meshStandardMaterial color="#0e1016" emissive="#7dd3fc" emissiveIntensity={0.6} />
+        {/* head */}
+        <mesh position={[0, 0.52, 0]}>
+          <sphereGeometry args={[0.17, 12, 10]} />
+          <meshStandardMaterial color={color} />
         </mesh>
-        {/* char silhouette accent */}
+        {/* visor */}
+        <mesh position={[0, 0.54, 0.13]}>
+          <boxGeometry args={[0.22, 0.07, 0.1]} />
+          <meshStandardMaterial color="#0e1016" emissive="#7dd3fc" emissiveIntensity={1.4} />
+        </mesh>
+        {/* arms */}
+        <group ref={armL} position={[-0.32, 0.22, 0]}>
+          <mesh position={[0, -0.16, 0]}>
+            <capsuleGeometry args={[0.075, 0.3, 4, 8]} />
+            <meshStandardMaterial color={color} />
+          </mesh>
+        </group>
+        <group ref={armR} position={[0.32, 0.22, 0]}>
+          <mesh position={[0, -0.16, 0]}>
+            <capsuleGeometry args={[0.075, 0.3, 4, 8]} />
+            <meshStandardMaterial color={color} />
+          </mesh>
+        </group>
+        {/* legs (stubby, read through the bob) */}
+        <mesh position={[-0.12, -0.46, 0]}>
+          <capsuleGeometry args={[0.08, 0.16, 4, 8]} />
+          <meshStandardMaterial color="#1a1a26" />
+        </mesh>
+        <mesh position={[0.12, -0.46, 0]}>
+          <capsuleGeometry args={[0.08, 0.16, 4, 8]} />
+          <meshStandardMaterial color="#1a1a26" />
+        </mesh>
+        {/* char silhouette gear */}
         {charId === "brute" ? (
-          <mesh position={[0, 0.05, 0]}>
-            <boxGeometry args={[0.72, 0.34, 0.4]} />
-            <meshStandardMaterial color={color} />
-          </mesh>
+          <>
+            <mesh position={[-0.34, 0.38, 0]}>
+              <boxGeometry args={[0.22, 0.14, 0.3]} />
+              <meshStandardMaterial color="#8a2f28" />
+            </mesh>
+            <mesh position={[0.34, 0.38, 0]}>
+              <boxGeometry args={[0.22, 0.14, 0.3]} />
+              <meshStandardMaterial color="#8a2f28" />
+            </mesh>
+          </>
         ) : charId === "tinker" ? (
-          <mesh position={[0, 0.48, -0.22]}>
-            <boxGeometry args={[0.34, 0.3, 0.18]} />
-            <meshStandardMaterial color="#8a7a3a" />
-          </mesh>
+          <>
+            <mesh position={[0, 0.15, -0.24]}>
+              <boxGeometry args={[0.34, 0.4, 0.16]} />
+              <meshStandardMaterial color="#6e6230" />
+            </mesh>
+            <mesh position={[0.12, 0.5, -0.24]}>
+              <cylinderGeometry args={[0.014, 0.014, 0.34, 4]} />
+              <meshStandardMaterial color="#c0c0d0" emissive="#e2c94c" emissiveIntensity={0.6} />
+            </mesh>
+          </>
         ) : (
-          <mesh position={[0, 0.5, -0.15]} rotation={[0.4, 0, 0]}>
-            <coneGeometry args={[0.16, 0.4, 6]} />
-            <meshStandardMaterial color={color} />
+          <mesh position={[0, 0.28, -0.18]} rotation={[0.5, 0, 0]}>
+            <coneGeometry args={[0.13, 0.42, 6]} />
+            <meshStandardMaterial color="#2a7d92" />
           </mesh>
         )}
       </group>
@@ -259,6 +316,7 @@ function Mob({
 }) {
   const group = useRef<THREE.Group>(null);
   const blob = useRef<THREE.Mesh>(null);
+  const head = useRef<THREE.Group>(null);
   const smoothed = useRef<{ x: number; z: number } | null>(null);
   const m = net.state?.rooms.get(roomCoord)?.mobs.get(mobId);
   const kind = m?.kind ?? "slime";
@@ -273,13 +331,37 @@ function Mob({
     sm.x += (mob.x - sm.x) * k;
     sm.z += (mob.z - sm.z) * k;
     group.current.position.set(sm.x, 0, sm.z);
+    // slimes face their movement, turrets track their target
+    if (kind === "slime") {
+      const vx = mob.x - sm.x;
+      const vz = mob.z - sm.z;
+      if (Math.hypot(vx, vz) > 0.005) {
+        group.current.rotation.y = Math.atan2(vx, vz);
+      }
+    } else if (head.current) {
+      const target = net.state?.players.get(mob.targetId);
+      if (target) {
+        head.current.rotation.y = Math.atan2(target.x - sm.x, target.z - sm.z);
+      } else {
+        head.current.rotation.y = clock.elapsedTime * 0.7; // idle scan
+      }
+    }
 
     if (blob.current) {
       const mat = blob.current.material as THREE.MeshStandardMaterial;
       const windup = mob.ai === "windup";
-      mat.emissiveIntensity = windup
-        ? 1.2 + Math.sin(clock.elapsedTime * 20) * 0.8
-        : 0.3;
+      const hitAge = Date.now() - (net.hitFlashes.get(mobId) ?? 0);
+      if (hitAge < 130) {
+        mat.emissive.set("#ffffff");
+        mat.emissiveIntensity = 2.2;
+      } else {
+        mat.emissive.set(
+          kind === "slime" ? "#8adf5a" : friendly ? "#e2c94c" : "#f43f5e",
+        );
+        mat.emissiveIntensity = windup
+          ? 1.2 + Math.sin(clock.elapsedTime * 20) * 0.8
+          : 0.3;
+      }
       if (kind === "slime") {
         const squash = 1 + Math.sin(clock.elapsedTime * 6 + sm.x) * 0.12;
         blob.current.scale.set(1 / squash, squash, 1 / squash);
@@ -292,30 +374,73 @@ function Mob({
   return (
     <group ref={group}>
       {kind === "slime" ? (
-        <mesh ref={blob} position={[0, 0.32, 0]} castShadow>
-          <sphereGeometry args={[0.34, 12, 10]} />
-          <meshStandardMaterial
-            color="#68b043"
-            emissive="#8adf5a"
-            emissiveIntensity={0.3}
-            transparent
-            opacity={0.92}
-          />
-        </mesh>
-      ) : (
         <group>
-          <mesh position={[0, 0.3, 0]}>
-            <cylinderGeometry args={[0.3, 0.38, 0.6, 8]} />
-            <meshStandardMaterial color={friendly ? "#8a7a3a" : "#4a3a4e"} />
-          </mesh>
-          <mesh ref={blob} position={[0, 0.72, 0]}>
-            <boxGeometry args={[0.34, 0.26, 0.5]} />
+          <mesh ref={blob} position={[0, 0.32, 0]} castShadow>
+            <sphereGeometry args={[0.34, 14, 12]} />
             <meshStandardMaterial
-              color={friendly ? "#e2c94c" : "#a05a72"}
-              emissive={friendly ? "#e2c94c" : "#f43f5e"}
+              color="#5da53c"
+              emissive="#8adf5a"
               emissiveIntensity={0.3}
+              transparent
+              opacity={0.92}
+              roughness={0.25}
             />
           </mesh>
+          {/* inner core gives it a jelly read */}
+          <mesh position={[0, 0.28, 0]}>
+            <sphereGeometry args={[0.18, 10, 8]} />
+            <meshStandardMaterial color="#3d7a24" transparent opacity={0.85} />
+          </mesh>
+          {/* eyes */}
+          <mesh position={[-0.11, 0.42, 0.26]}>
+            <sphereGeometry args={[0.055, 8, 8]} />
+            <meshStandardMaterial color="#0c1408" />
+          </mesh>
+          <mesh position={[0.11, 0.42, 0.26]}>
+            <sphereGeometry args={[0.055, 8, 8]} />
+            <meshStandardMaterial color="#0c1408" />
+          </mesh>
+        </group>
+      ) : (
+        <group>
+          {/* tripod legs */}
+          {[0, 2.094, 4.189].map((a) => (
+            <mesh
+              key={a}
+              position={[Math.sin(a) * 0.22, 0.16, Math.cos(a) * 0.22]}
+              rotation={[0.5 * Math.cos(a), 0, -0.5 * Math.sin(a)]}
+            >
+              <cylinderGeometry args={[0.035, 0.05, 0.42, 6]} />
+              <meshStandardMaterial color="#2c2c3a" />
+            </mesh>
+          ))}
+          <mesh position={[0, 0.42, 0]}>
+            <cylinderGeometry args={[0.2, 0.26, 0.3, 8]} />
+            <meshStandardMaterial color={friendly ? "#8a7a3a" : "#3a3444"} />
+          </mesh>
+          {/* rotating head + barrel + eye */}
+          <group ref={head} position={[0, 0.68, 0]}>
+            <mesh ref={blob}>
+              <boxGeometry args={[0.3, 0.22, 0.42]} />
+              <meshStandardMaterial
+                color={friendly ? "#e2c94c" : "#8a4a62"}
+                emissive={friendly ? "#e2c94c" : "#f43f5e"}
+                emissiveIntensity={0.3}
+              />
+            </mesh>
+            <mesh position={[0, 0, 0.32]} rotation={[Math.PI / 2, 0, 0]}>
+              <cylinderGeometry args={[0.05, 0.05, 0.26, 8]} />
+              <meshStandardMaterial color="#1c1c28" />
+            </mesh>
+            <mesh position={[0, 0.08, 0.18]}>
+              <sphereGeometry args={[0.05, 8, 8]} />
+              <meshStandardMaterial
+                color={friendly ? "#fff7c2" : "#ff5a70"}
+                emissive={friendly ? "#e2c94c" : "#f43f5e"}
+                emissiveIntensity={2.4}
+              />
+            </mesh>
+          </group>
         </group>
       )}
       <HpBar
@@ -323,7 +448,7 @@ function Mob({
           const mob = net.state?.rooms.get(roomCoord)?.mobs.get(mobId);
           return mob ? mob.hp / Math.max(1, mob.maxHp) : 0;
         }}
-        y={kind === "slime" ? 0.95 : 1.2}
+        y={kind === "slime" ? 0.95 : 1.25}
         width={0.6}
         color={friendly ? "#e2c94c" : "#f43f5e"}
       />

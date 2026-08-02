@@ -27,6 +27,8 @@ export type InteractMsg = z.infer<typeof InteractMsg>;
 export const AbilityMsg = z.object({
   /** 0..2 = character abilities, 3 = universal strike */
   slot: z.number().int().min(0).max(3),
+  /** aim yaw at the moment of the click — beats waiting for the next input packet */
+  yaw: z.number().finite().optional(),
 });
 export type AbilityMsg = z.infer<typeof AbilityMsg>;
 

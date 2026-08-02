@@ -179,6 +179,18 @@ function updateInteractHint(net: NetClient): void {
         hint = "E — pull lever";
         break;
       }
+      if (
+        (p.type === "exit_terminal" || p.type === "vent_terminal") &&
+        !room.cleared &&
+        near(p.cell[0] + 0.5, p.cell[1] + 0.5, 2.1)
+      ) {
+        const verb = p.type === "exit_terminal" ? "escape" : "vent the room";
+        hint =
+          room.logicProgress > 0
+            ? `keep holding E — ${room.logicProgress}%`
+            : `hold E — ${verb}`;
+        break;
+      }
     }
   }
   if (!hint) {
@@ -189,7 +201,25 @@ function updateInteractHint(net: NetClient): void {
       } else if (d.face === "D") {
         if (near(d.cellX + 0.5, d.cellZ + 0.5)) hint = "E — drop down";
       } else if (!d.open && near(d.cellX + 0.5, d.cellZ + 0.5)) {
-        hint = "E — open door";
+        switch (d.gateType) {
+          case "key":
+            hint = `E — open (needs ${d.gateParam} key)`;
+            break;
+          case "stat":
+            hint = `E — open (${d.gateParam} ${d.gateValue} near the door)`;
+            break;
+          case "plates":
+            hint = `hold ${d.gateValue} plate${d.gateValue > 1 ? "s" : ""} to open`;
+            break;
+          case "objective":
+            hint =
+              d.ownerCoord === me.roomCoord
+                ? "sealed — clear this room's objective"
+                : "sealed by an objective on the far side";
+            break;
+          default:
+            hint = "E — open door";
+        }
       }
       if (hint) break;
     }
