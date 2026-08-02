@@ -17,6 +17,9 @@ export default defineWorkspace([
       environment: "node",
       testTimeout: 20000,
       hookTimeout: 20000,
+      // colyseus registers process-level IPC/signal handlers that break the forks pool
+      pool: "threads",
+      poolOptions: { threads: { singleThread: true } },
     },
   },
 ]);

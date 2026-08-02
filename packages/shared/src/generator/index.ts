@@ -228,18 +228,23 @@ function tryGenerate(
         return { ...e, gate: { type: "key", color } };
       }
       case "plates": {
-        // need a plate tile on one side to press
-        const hasPlates = (id: CoordId) =>
-          templateOf(id).tiles.some((row, z) =>
-            row.split("").some((ch, x) => {
-              void x;
-              void z;
-              return templateOf(id).tileLegend[ch] === "plate";
-            }),
-          );
-        if (!hasPlates(e.a) && !hasPlates(e.b))
-          return { ...e, gate: { type: "open" } };
-        const maxCount = Math.min(2, caps.players + (caps.hasBrute ? 1 : 0));
+        // presses come from bodies ON plate tiles (+1 Hold Fast token), so the
+        // count must be achievable with the plate tiles that actually exist
+        const plateTiles = (id: CoordId) => {
+          const t = templateOf(id);
+          let n = 0;
+          for (const row of t.tiles)
+            for (const ch of row) if (t.tileLegend[ch] === "plate") n++;
+          return n;
+        };
+        // players may arrive from either side of a closed door, so the count
+        // must be pressable from BOTH sides
+        const tiles = Math.min(plateTiles(e.a), plateTiles(e.b));
+        const maxCount = Math.min(
+          2,
+          caps.players + (caps.hasBrute ? 1 : 0),
+          tiles + (caps.hasBrute ? 1 : 0),
+        );
         if (maxCount < 1) return { ...e, gate: { type: "open" } };
         const count = maxCount >= 2 && rng() < 0.6 ? 2 : 1;
         return { ...e, gate: { type: "plates", count } };

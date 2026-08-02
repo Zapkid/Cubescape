@@ -49,20 +49,10 @@ export const EmoteMsg = z.object({
 });
 export type EmoteMsg = z.infer<typeof EmoteMsg>;
 
-/** Server → client transient events (sound/vfx cues; state itself flows via schema). */
+/** Server → client transient events (sound/vfx cues; state itself flows via schema).
+ * Known kinds: hit, mobDie, doorOpen, keyPickup, objective, downed, revived,
+ * ping, emote, message, matchComplete, breach, transition, ability. */
 export interface ServerEvent {
-  t:
-    | "hit" // someone took damage
-    | "mobDie"
-    | "doorOpen"
-    | "keyPickup"
-    | "objective"
-    | "downed"
-    | "revived"
-    | "ping"
-    | "emote"
-    | "message"
-    | "matchComplete"
-    | "breach";
+  t: string;
   [key: string]: unknown;
 }
