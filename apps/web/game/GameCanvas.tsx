@@ -1,6 +1,7 @@
 "use client";
 
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { Bloom, EffectComposer, Noise, Vignette } from "@react-three/postprocessing";
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { getTemplate, INTERACT_RANGE } from "@cubescape/shared";
@@ -23,8 +24,19 @@ export function GameCanvas({ net }: { net: NetClient }) {
         gl.toneMapping = THREE.ACESFilmicToneMapping;
       }}
     >
-      <fog attach="fog" args={["#05050a", 10, 26]} />
+      <fog attach="fog" args={["#04040a", 7, 22]} />
       <GameScene net={net} />
+      {/* the teaser look: heavy bloom on emissives, vignette, film grain */}
+      <EffectComposer>
+        <Bloom
+          mipmapBlur
+          intensity={1.15}
+          luminanceThreshold={0.35}
+          luminanceSmoothing={0.2}
+        />
+        <Vignette eskil={false} offset={0.18} darkness={0.85} />
+        <Noise opacity={0.045} />
+      </EffectComposer>
     </Canvas>
   );
 }

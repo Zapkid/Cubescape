@@ -137,73 +137,88 @@ function PlayerRig({ net, sessionId }: { net: NetClient; sessionId: string }) {
   return (
     <group ref={group}>
       <group ref={body} position={[0, 0.62, 0]}>
-        {/* torso */}
+        {/* rounded astronaut body: head and torso merge into one soft capsule */}
         <mesh castShadow>
-          <capsuleGeometry args={[0.24, 0.42, 6, 12]} />
+          <capsuleGeometry args={[0.3, 0.34, 8, 16]} />
           <meshStandardMaterial
             color={color}
+            roughness={0.6}
             emissive={color}
-            emissiveIntensity={grappling ? 0.8 : 0.12}
+            emissiveIntensity={grappling ? 0.7 : 0.06}
           />
         </mesh>
-        {/* head */}
-        <mesh position={[0, 0.52, 0]}>
-          <sphereGeometry args={[0.17, 12, 10]} />
-          <meshStandardMaterial color={color} />
+        {/* BIG glowing visor — the face IS the visor */}
+        <mesh position={[0, 0.28, 0.21]} rotation={[-0.08, 0, 0]}>
+          <capsuleGeometry args={[0.13, 0.14, 6, 12]} />
+          <meshStandardMaterial
+            color="#0a1a22"
+            emissive="#8ae8ff"
+            emissiveIntensity={2.4}
+            roughness={0.15}
+          />
         </mesh>
-        {/* visor */}
-        <mesh position={[0, 0.54, 0.13]}>
-          <boxGeometry args={[0.22, 0.07, 0.1]} />
-          <meshStandardMaterial color="#0e1016" emissive="#7dd3fc" emissiveIntensity={1.4} />
+        {/* visor rim */}
+        <mesh position={[0, 0.28, 0.185]} rotation={[-0.08, 0, 0]}>
+          <capsuleGeometry args={[0.155, 0.15, 6, 12]} />
+          <meshStandardMaterial color="#11141f" roughness={0.4} />
         </mesh>
-        {/* arms */}
-        <group ref={armL} position={[-0.32, 0.22, 0]}>
-          <mesh position={[0, -0.16, 0]}>
-            <capsuleGeometry args={[0.075, 0.3, 4, 8]} />
-            <meshStandardMaterial color={color} />
+        {/* life-support backpack (everyone — we're all trapped in the same suit) */}
+        <mesh position={[0, 0.1, -0.26]}>
+          <boxGeometry args={[0.34, 0.44, 0.16]} />
+          <meshStandardMaterial color="#181c2a" />
+        </mesh>
+        <mesh position={[0, 0.32, -0.3]}>
+          <boxGeometry args={[0.1, 0.06, 0.05]} />
+          <meshStandardMaterial color={color} emissive={color} emissiveIntensity={1.6} />
+        </mesh>
+        {/* stubby arms */}
+        <group ref={armL} position={[-0.34, 0.08, 0]}>
+          <mesh position={[0, -0.12, 0]}>
+            <capsuleGeometry args={[0.09, 0.2, 4, 8]} />
+            <meshStandardMaterial color={color} roughness={0.6} />
           </mesh>
         </group>
-        <group ref={armR} position={[0.32, 0.22, 0]}>
-          <mesh position={[0, -0.16, 0]}>
-            <capsuleGeometry args={[0.075, 0.3, 4, 8]} />
-            <meshStandardMaterial color={color} />
+        <group ref={armR} position={[0.34, 0.08, 0]}>
+          <mesh position={[0, -0.12, 0]}>
+            <capsuleGeometry args={[0.09, 0.2, 4, 8]} />
+            <meshStandardMaterial color={color} roughness={0.6} />
           </mesh>
         </group>
-        {/* legs (stubby, read through the bob) */}
-        <mesh position={[-0.12, -0.46, 0]}>
-          <capsuleGeometry args={[0.08, 0.16, 4, 8]} />
-          <meshStandardMaterial color="#1a1a26" />
+        {/* stubby legs */}
+        <mesh position={[-0.13, -0.5, 0]}>
+          <capsuleGeometry args={[0.095, 0.12, 4, 8]} />
+          <meshStandardMaterial color="#14161f" />
         </mesh>
-        <mesh position={[0.12, -0.46, 0]}>
-          <capsuleGeometry args={[0.08, 0.16, 4, 8]} />
-          <meshStandardMaterial color="#1a1a26" />
+        <mesh position={[0.13, -0.5, 0]}>
+          <capsuleGeometry args={[0.095, 0.12, 4, 8]} />
+          <meshStandardMaterial color="#14161f" />
         </mesh>
         {/* char silhouette gear */}
         {charId === "brute" ? (
           <>
-            <mesh position={[-0.34, 0.38, 0]}>
-              <boxGeometry args={[0.22, 0.14, 0.3]} />
+            <mesh position={[-0.36, 0.24, 0]}>
+              <boxGeometry args={[0.2, 0.14, 0.3]} />
               <meshStandardMaterial color="#8a2f28" />
             </mesh>
-            <mesh position={[0.34, 0.38, 0]}>
-              <boxGeometry args={[0.22, 0.14, 0.3]} />
+            <mesh position={[0.36, 0.24, 0]}>
+              <boxGeometry args={[0.2, 0.14, 0.3]} />
               <meshStandardMaterial color="#8a2f28" />
             </mesh>
           </>
         ) : charId === "tinker" ? (
           <>
-            <mesh position={[0, 0.15, -0.24]}>
-              <boxGeometry args={[0.34, 0.4, 0.16]} />
-              <meshStandardMaterial color="#6e6230" />
+            <mesh position={[0.12, 0.42, -0.3]}>
+              <cylinderGeometry args={[0.014, 0.014, 0.4, 4]} />
+              <meshStandardMaterial color="#c0c0d0" />
             </mesh>
-            <mesh position={[0.12, 0.5, -0.24]}>
-              <cylinderGeometry args={[0.014, 0.014, 0.34, 4]} />
-              <meshStandardMaterial color="#c0c0d0" emissive="#e2c94c" emissiveIntensity={0.6} />
+            <mesh position={[0.12, 0.64, -0.3]}>
+              <sphereGeometry args={[0.035, 6, 6]} />
+              <meshStandardMaterial color="#e2c94c" emissive="#e2c94c" emissiveIntensity={2.4} />
             </mesh>
           </>
         ) : (
-          <mesh position={[0, 0.28, -0.18]} rotation={[0.5, 0, 0]}>
-            <coneGeometry args={[0.13, 0.42, 6]} />
+          <mesh position={[0, 0.56, -0.08]} rotation={[0.9, 0, 0]}>
+            <coneGeometry args={[0.1, 0.3, 6]} />
             <meshStandardMaterial color="#2a7d92" />
           </mesh>
         )}

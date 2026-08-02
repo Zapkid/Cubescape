@@ -81,25 +81,31 @@ export function RoomView3D({
 
   return (
     <group>
-      {/* white ambient for base visibility; archetype mood rides the hemisphere + point */}
-      <ambientLight color="#ffffff" intensity={0.38} />
-      <hemisphereLight args={[lighting.ambient, "#0a0a12", 3.2]} />
-      <directionalLight position={[6, 10, 4]} color="#ccd4ff" intensity={0.9} />
+      {/* darker base — the emissives + bloom carry the light, teaser-style */}
+      <ambientLight color="#ffffff" intensity={0.24} />
+      <hemisphereLight args={[lighting.ambient, "#07070e", 2.6]} />
+      <directionalLight position={[6, 10, 4]} color="#ccd4ff" intensity={0.55} />
       <pointLight
         position={[4.5, 3.2, 4.5]}
         color={lighting.point}
-        intensity={template.lighting.intensity * 42}
+        intensity={template.lighting.intensity * 40}
         distance={18}
         decay={1.3}
       />
-      <Floor tiles={tiles} room={room} net={net} />
-      <Walls room={room} />
+      <Floor tiles={tiles} room={room} net={net} accent={lighting.point} />
+      <Walls room={room} accent={lighting.point} />
+      <CeilingCircuits room={room} accent={lighting.point} />
       <Doors room={room} myCharId={myCharId} />
       <Props template={template} room={room} myCharId={myCharId} net={net} />
       <Spikes template={template} tiles={tiles} room={room} net={net} />
       <Deployables room={room} net={net} />
     </group>
   );
+}
+
+/** neutral connector rooms get the signature cyan lanes; mood rooms keep their accent */
+function laneColor(accent: string): string {
+  return accent === "#8888aa" ? "#38d6f0" : accent;
 }
 
 /** deterministic tiny tint variation so floors don't read as one flat slab */
@@ -112,10 +118,12 @@ function Floor({
   tiles,
   room,
   net,
+  accent,
 }: {
   tiles: TileType[][];
   room: RoomView;
   net: NetClient;
+  accent: string;
 }) {
   const overrides = new Set(room.walkableOverrides);
   const holes = new Set(room.breachHoles);
@@ -153,17 +161,31 @@ function Floor({
         const base = new THREE.Color(bridged ? "#4a3f2e" : TILE_COLORS[c.t] ?? "#2a2a3a");
         base.multiplyScalar(shade);
         const isAccent = c.t !== "floor" && !bridged;
+        // glowing walkway lanes between the doors — the teaser's lit floor path
+        const isLane = c.t === "floor" && (c.x === 4 || c.z === 4);
         return (
           <group key={c.key}>
             <mesh position={[c.x + 0.5, -0.1, c.z + 0.5]} receiveShadow>
               <boxGeometry args={[0.96, 0.2, 0.96]} />
               <meshStandardMaterial
-                color={base}
+                color={isLane ? "#10141f" : base}
                 emissive={isAccent ? TILE_COLORS[c.t] : "#000000"}
                 emissiveIntensity={isAccent ? 0.4 : 0}
                 roughness={0.85}
               />
             </mesh>
+            {isLane ? (
+              <mesh position={[c.x + 0.5, 0.005, c.z + 0.5]} rotation={[-Math.PI / 2, 0, 0]}>
+                <planeGeometry args={[0.56, 0.56]} />
+                <meshStandardMaterial
+                  color={laneColor(accent)}
+                  emissive={laneColor(accent)}
+                  emissiveIntensity={0.75}
+                  transparent
+                  opacity={0.6}
+                />
+              </mesh>
+            ) : null}
             {c.t === "plate" ? <PlateDisc x={c.x} z={c.z} room={room} net={net} /> : null}
             {c.t === "lift" ? (
               <mesh position={[c.x + 0.5, 0.03, c.z + 0.5]}>
@@ -245,7 +267,15 @@ function LiftGlow({ tiles, room }: { tiles: TileType[][]; room: RoomView }) {
   );
 }
 
-function Walls({ room }: { room: RoomView }) {
+/** deterministic per-room hash for varied-but-stable wall decoration */
+function roomHash(coordId: string, salt: number): number {
+  let h = salt * 374761393;
+  for (const ch of coordId) h = Math.imul(h ^ ch.charCodeAt(0), 668265263);
+  h = (h ^ (h >>> 13)) >>> 0;
+  return h / 4294967295;
+}
+
+function Walls({ room, accent }: { room: RoomView; accent: string }) {
   const segments = useMemo(() => {
     const segs: { x: number; z: number; w: number; d: number }[] = [];
     const doorCells: Record<string, number> = {};
@@ -279,32 +309,127 @@ function Walls({ room }: { room: RoomView }) {
 
   return (
     <group>
-      {segments.map((s, i) => (
-        <group key={i}>
-          <mesh position={[s.x, WALL_H / 2, s.z]}>
-            <boxGeometry args={[s.w, WALL_H, s.d]} />
-            <meshStandardMaterial color="#1c1c28" roughness={0.9} />
-          </mesh>
-          {/* skirting + glow trim line give the walls scale */}
-          <mesh position={[s.x, 0.14, s.z]}>
-            <boxGeometry args={[s.w + 0.02, 0.28, s.d + 0.02]} />
-            <meshStandardMaterial color="#242434" />
-          </mesh>
-          <mesh position={[s.x, 2.18, s.z]}>
-            <boxGeometry args={[s.w + 0.02, 0.05, s.d + 0.02]} />
-            <meshStandardMaterial
-              color="#2a3550"
-              emissive="#4a6a9a"
-              emissiveIntensity={0.5}
-            />
-          </mesh>
-        </group>
-      ))}
+      {segments.map((s, i) => {
+        const horizontal = s.w > s.d;
+        const len = horizontal ? s.w : s.d;
+        const inward = s.z < 1 ? 0.18 : s.z > 8 ? -0.18 : s.x < 1 ? 0.18 : -0.18;
+        // beveled panel insets along the wall face, teaser-style
+        const panelCount = Math.max(1, Math.round(len / 1.6));
+        const panels = Array.from({ length: panelCount }, (_, pi) => {
+          const off = ((pi + 0.5) / panelCount - 0.5) * len;
+          const lit = roomHash(room.coordId, i * 31 + pi) > 0.78;
+          return { off, lit };
+        });
+        return (
+          <group key={i}>
+            <mesh position={[s.x, WALL_H / 2, s.z]}>
+              <boxGeometry args={[s.w, WALL_H, s.d]} />
+              <meshStandardMaterial color="#191924" roughness={0.9} />
+            </mesh>
+            {panels.map((p, pi) => (
+              <group key={pi}>
+                <mesh
+                  position={[
+                    horizontal ? s.x + p.off : s.x + inward * 0.75,
+                    1.3,
+                    horizontal ? s.z + inward * 0.75 : s.z + p.off,
+                  ]}
+                >
+                  <boxGeometry
+                    args={
+                      horizontal
+                        ? [len / panelCount - 0.24, 1.5, 0.1]
+                        : [0.1, 1.5, len / panelCount - 0.24]
+                    }
+                  />
+                  <meshStandardMaterial color="#222230" roughness={0.85} />
+                </mesh>
+                {p.lit ? (
+                  <mesh
+                    position={[
+                      horizontal ? s.x + p.off : s.x + inward,
+                      1.72,
+                      horizontal ? s.z + inward : s.z + p.off,
+                    ]}
+                  >
+                    <boxGeometry
+                      args={horizontal ? [0.5, 0.16, 0.04] : [0.04, 0.16, 0.5]}
+                    />
+                    <meshStandardMaterial
+                      color="#dff4ff"
+                      emissive="#bfe9ff"
+                      emissiveIntensity={2.2}
+                    />
+                  </mesh>
+                ) : null}
+              </group>
+            ))}
+            {/* skirting + glow trim line */}
+            <mesh position={[s.x, 0.14, s.z]}>
+              <boxGeometry args={[s.w + 0.02, 0.28, s.d + 0.02]} />
+              <meshStandardMaterial color="#22222f" />
+            </mesh>
+            <mesh position={[s.x, 2.18, s.z]}>
+              <boxGeometry args={[s.w + 0.02, 0.05, s.d + 0.02]} />
+              <meshStandardMaterial
+                color={accent}
+                emissive={accent}
+                emissiveIntensity={0.55}
+              />
+            </mesh>
+          </group>
+        );
+      })}
       {/* ceiling */}
       <mesh position={[4.5, WALL_H + 0.1, 4.5]}>
         <boxGeometry args={[9.6, 0.2, 9.6]} />
-        <meshStandardMaterial color="#131320" />
+        <meshStandardMaterial color="#0e0e18" />
       </mesh>
+    </group>
+  );
+}
+
+/** glowing circuit traces across the ceiling — the cube is a machine */
+function CeilingCircuits({ room, accent }: { room: RoomView; accent: string }) {
+  const strips = useMemo(() => {
+    const out: { x: number; z: number; w: number; d: number }[] = [];
+    for (let i = 0; i < 3; i++) {
+      const along = roomHash(room.coordId, 7 + i) > 0.5;
+      const pos = 1.5 + roomHash(room.coordId, 13 + i) * 6;
+      const start = roomHash(room.coordId, 23 + i) * 3;
+      const len = 3 + roomHash(room.coordId, 41 + i) * 5;
+      if (along) out.push({ x: start + len / 2, z: pos, w: len, d: 0.07 });
+      else out.push({ x: pos, z: start + len / 2, w: 0.07, d: len });
+    }
+    return out;
+  }, [room.coordId]);
+  return (
+    <group>
+      {strips.map((s, i) => (
+        <group key={i}>
+          <mesh position={[Math.min(8.6, s.x), WALL_H - 0.02, Math.min(8.6, s.z)]}>
+            <boxGeometry args={[s.w, 0.03, s.d]} />
+            <meshStandardMaterial
+              color={accent}
+              emissive={accent}
+              emissiveIntensity={0.9}
+              transparent
+              opacity={0.85}
+            />
+          </mesh>
+          {/* node at the strip end */}
+          <mesh
+            position={[
+              Math.min(8.6, s.x + (s.w > 1 ? s.w / 2 : 0)),
+              WALL_H - 0.02,
+              Math.min(8.6, s.z + (s.d > 1 ? s.d / 2 : 0)),
+            ]}
+          >
+            <boxGeometry args={[0.16, 0.05, 0.16]} />
+            <meshStandardMaterial color={accent} emissive={accent} emissiveIntensity={1.4} />
+          </mesh>
+        </group>
+      ))}
     </group>
   );
 }
@@ -379,22 +504,40 @@ function Door({
 
   return (
     <group position={pos}>
-      {/* frame posts */}
-      <mesh position={horizontal ? [-0.55, WALL_H / 2, 0] : [0, WALL_H / 2, -0.55]}>
-        <boxGeometry args={horizontal ? [0.14, WALL_H, 0.36] : [0.36, WALL_H, 0.14]} />
-        <meshStandardMaterial color={tint} emissive={tint} emissiveIntensity={0.35} />
+      {/* chunky portal posts */}
+      <mesh position={horizontal ? [-0.62, WALL_H / 2, 0] : [0, WALL_H / 2, -0.62]}>
+        <boxGeometry args={horizontal ? [0.22, WALL_H, 0.42] : [0.42, WALL_H, 0.22]} />
+        <meshStandardMaterial color="#20202e" />
       </mesh>
-      <mesh position={horizontal ? [0.55, WALL_H / 2, 0] : [0, WALL_H / 2, 0.55]}>
-        <boxGeometry args={horizontal ? [0.14, WALL_H, 0.36] : [0.36, WALL_H, 0.14]} />
-        <meshStandardMaterial color={tint} emissive={tint} emissiveIntensity={0.35} />
+      <mesh position={horizontal ? [0.62, WALL_H / 2, 0] : [0, WALL_H / 2, 0.62]}>
+        <boxGeometry args={horizontal ? [0.22, WALL_H, 0.42] : [0.42, WALL_H, 0.22]} />
+        <meshStandardMaterial color="#20202e" />
+      </mesh>
+      {/* glowing inner frame strips */}
+      <mesh position={horizontal ? [-0.5, WALL_H / 2, 0] : [0, WALL_H / 2, -0.5]}>
+        <boxGeometry args={horizontal ? [0.06, WALL_H - 0.2, 0.44] : [0.44, WALL_H - 0.2, 0.06]} />
+        <meshStandardMaterial color={tint} emissive={tint} emissiveIntensity={0.9} />
+      </mesh>
+      <mesh position={horizontal ? [0.5, WALL_H / 2, 0] : [0, WALL_H / 2, 0.5]}>
+        <boxGeometry args={horizontal ? [0.06, WALL_H - 0.2, 0.44] : [0.44, WALL_H - 0.2, 0.06]} />
+        <meshStandardMaterial color={tint} emissive={tint} emissiveIntensity={0.9} />
+      </mesh>
+      {/* lit lintel across the top */}
+      <mesh position={[0, WALL_H - 0.14, 0]}>
+        <boxGeometry args={horizontal ? [1.46, 0.24, 0.42] : [0.42, 0.24, 1.46]} />
+        <meshStandardMaterial color="#20202e" />
+      </mesh>
+      <mesh position={[0, WALL_H - 0.3, 0]}>
+        <boxGeometry args={horizontal ? [1.1, 0.07, 0.44] : [0.44, 0.07, 1.1]} />
+        <meshStandardMaterial color={tint} emissive={tint} emissiveIntensity={1.2} />
       </mesh>
       {/* sliding panel */}
       <mesh ref={panelRef} position={[0, 1.1, 0]}>
         <boxGeometry args={horizontal ? [1.0, 2.2, 0.18] : [0.18, 2.2, 1.0]} />
         <meshStandardMaterial
-          color="#3a3a4c"
+          color="#2e2e40"
           emissive={tint}
-          emissiveIntensity={d.open ? 0 : 0.12}
+          emissiveIntensity={d.open ? 0 : 0.18}
         />
       </mesh>
       {labelVisible ? (
@@ -763,7 +906,7 @@ function Spikes({
           userData={{ z: c.z }}
         >
           <coneGeometry args={[0.3, 0.9, 6]} />
-          <meshStandardMaterial color="#8a3040" emissive="#f43f5e" emissiveIntensity={0.35} />
+          <meshStandardMaterial color="#c23048" emissive="#ff2f4e" emissiveIntensity={1.1} />
         </mesh>
       ))}
     </group>

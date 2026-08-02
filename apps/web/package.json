@@ -12,6 +12,7 @@
     "@cubescape/shared": "workspace:*",
     "@react-three/drei": "^9.120.4",
     "@react-three/fiber": "^8.17.10",
+    "@react-three/postprocessing": "^2.16.3",
     "colyseus.js": "^0.15.26",
     "next": "^14.2.21",
     "react": "^18.3.1",
