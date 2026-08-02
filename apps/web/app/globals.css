@@ -315,29 +315,198 @@ input {
 
 /* ---------- landing ---------- */
 .landing {
-  height: 100vh;
+  position: relative;
+  min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
   background:
-    radial-gradient(circle at 20% 20%, rgba(45, 212, 191, 0.08), transparent 40%),
-    radial-gradient(circle at 80% 70%, rgba(167, 139, 250, 0.08), transparent 40%),
-    #05050a;
+    radial-gradient(ellipse at 15% 10%, rgba(45, 212, 191, 0.1), transparent 45%),
+    radial-gradient(ellipse at 85% 85%, rgba(167, 139, 250, 0.12), transparent 45%),
+    radial-gradient(ellipse at 70% 20%, rgba(244, 63, 94, 0.06), transparent 40%),
+    #04040a;
 }
-.landing .panel { text-align: left; }
-.landing h1 { text-align: center; }
-.landing .tagline { text-align: center; margin-bottom: 24px; }
+.landing-grid {
+  position: absolute;
+  inset: -50%;
+  background-image:
+    linear-gradient(rgba(120, 130, 180, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(120, 130, 180, 0.05) 1px, transparent 1px);
+  background-size: 48px 48px;
+  transform: perspective(600px) rotateX(55deg) translateY(10%);
+  mask-image: radial-gradient(ellipse at 50% 40%, black 30%, transparent 75%);
+  -webkit-mask-image: radial-gradient(ellipse at 50% 40%, black 30%, transparent 75%);
+  animation: gridDrift 24s linear infinite;
+  pointer-events: none;
+}
+@keyframes gridDrift {
+  from { background-position: 0 0, 0 0; }
+  to { background-position: 0 480px, 0 0; }
+}
+
+.landing-inner {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: 56px;
+  align-items: center;
+  max-width: 1040px;
+  width: min(1040px, 94vw);
+  padding: 48px 24px;
+}
+@media (max-width: 860px) {
+  .landing-inner { grid-template-columns: 1fr; gap: 32px; }
+  .cube-scene { display: none; }
+}
+
+/* --- hero --- */
+.hero { position: relative; }
+.landing .logo {
+  font-size: clamp(44px, 6vw, 64px);
+  letter-spacing: 0.14em;
+  margin: 0 0 14px;
+  text-shadow: 0 0 40px rgba(167, 139, 250, 0.35);
+}
+.tagline {
+  font-size: 16px;
+  line-height: 1.65;
+  color: #b8c0d4;
+  margin-bottom: 26px;
+}
+.tagline em { color: #7dd3fc; font-style: normal; }
+
+.char-chips { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 24px; }
+.char-chip {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  border: 1px solid;
+  border-radius: 10px;
+  padding: 9px 14px 9px 11px;
+  background: rgba(12, 12, 24, 0.7);
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.char-chip:hover { transform: translateY(-2px); box-shadow: 0 6px 22px rgba(0, 0, 0, 0.5); }
+.char-chip-dot { width: 10px; height: 10px; border-radius: 50%; box-shadow: 0 0 10px currentColor; }
+.char-chip-name { font-size: 14px; letter-spacing: 0.06em; }
+.char-chip-blurb { font-size: 11px; color: #8890a4; }
+
+.feature-line { list-style: none; font-size: 13px; line-height: 2; }
+.feature-line li::before { content: "▸ "; color: #2dd4bf; }
+
+/* --- rotating cube --- */
+.cube-scene {
+  position: absolute;
+  top: -74px;
+  right: -12px;
+  width: 150px;
+  height: 150px;
+  perspective: 700px;
+  opacity: 0.9;
+  pointer-events: none;
+}
+.cube3d {
+  position: absolute;
+  inset: 25px;
+  transform-style: preserve-3d;
+  animation: cubeSpin 26s linear infinite;
+}
+@keyframes cubeSpin {
+  from { transform: rotateX(-22deg) rotateY(0deg); }
+  to { transform: rotateX(-22deg) rotateY(360deg); }
+}
+.cube-face {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  gap: 4px;
+  padding: 5px;
+  background: rgba(8, 8, 18, 0.85);
+  border: 1px solid rgba(125, 211, 252, 0.35);
+  box-shadow: inset 0 0 24px rgba(45, 212, 191, 0.08);
+}
+.cube-cell { background: rgba(120, 130, 180, 0.1); border-radius: 2px; }
+.face-0 { transform: rotateY(0deg) translateZ(50px); }
+.face-1 { transform: rotateY(90deg) translateZ(50px); }
+.face-2 { transform: rotateY(180deg) translateZ(50px); }
+.face-3 { transform: rotateY(-90deg) translateZ(50px); }
+.face-4 { transform: rotateX(90deg) translateZ(50px); }
+.face-5 { transform: rotateX(-90deg) translateZ(50px); }
+
+/* --- join card --- */
+.join-card {
+  background: rgba(13, 13, 26, 0.88);
+  border: 1px solid #2e2e46;
+  border-radius: 16px;
+  padding: 30px 30px 22px;
+  backdrop-filter: blur(6px);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55);
+}
+.join-title {
+  font-size: 13px;
+  letter-spacing: 0.28em;
+  color: #8890a4;
+  margin-bottom: 20px;
+  text-align: center;
+}
 .field { margin: 14px 0; }
 .field label {
   display: block;
-  font-size: 12px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
   color: #8890a4;
   margin-bottom: 6px;
 }
-.join-row { display: flex; gap: 10px; margin-top: 22px; }
-.join-row button { flex: 1; }
-.primary {
-  background: #14284a;
-  border-color: #2f5a9a;
+.field input {
+  background: #0b0b16;
+  border-color: #34344e;
+  padding: 12px 14px;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
-.primary:hover:not(:disabled) { background: #1a3560; }
+.field input:focus {
+  outline: none;
+  border-color: #2dd4bf;
+  box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.15);
+}
+
+.cta-primary,
+.cta-secondary {
+  display: block;
+  width: 100%;
+  margin-top: 14px;
+  padding: 14px 18px;
+  font-size: 16px;
+  letter-spacing: 0.1em;
+  border-radius: 10px;
+  text-align: center;
+}
+.cta-primary {
+  background: linear-gradient(135deg, #0f3d33, #123551);
+  border: 1px solid #2dd4bf;
+  color: #e6fffa;
+  box-shadow: 0 0 24px rgba(45, 212, 191, 0.18);
+  transition: transform 0.12s, box-shadow 0.12s;
+}
+.cta-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 0 36px rgba(45, 212, 191, 0.35);
+  background: linear-gradient(135deg, #124a3e, #164064);
+}
+.cta-secondary {
+  background: transparent;
+  border: 1px solid #3a3a52;
+  color: #b8c0d4;
+}
+.cta-secondary:hover { border-color: #a78bfa; color: #ddd6fe; box-shadow: 0 0 24px rgba(167, 139, 250, 0.18); }
+.cta-sub {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  color: #8890a4;
+}
+.join-foot { margin-top: 18px; text-align: center; line-height: 1.7; }
+.dimmer { color: #565e72; }

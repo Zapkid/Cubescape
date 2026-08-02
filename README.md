@@ -67,15 +67,6 @@ pnpm soak -- --bots 4 --seconds 150 --seed 7 --solve  # bots must escape
 CUBE_DEBUG=1 pnpm dev                                  # ASCII cube map per match
 ```
 
-## Design notes (what each system steals from the greats)
-
-- **Spelunky/Isaac** — handcrafted templates + procedural assembly + daily seed
-- **Deep Rock Galactic** — class interdependence, ping wheel, co-op doors
-- **Hades** — failed runs still bank 60% EXP
-- **Phasmophobia** — per-character senses (Brute sees cracked floors glow, Scout
-  reads door gates at range, Tinker sees wiring) force callouts
-- **Lethal Company** — downed-revive drama, death spectating, risk-bonus scoring
-
 ## Status / roadmap
 
 MVP vertical slice: 10 templates, 3 characters, PvE, 3×3×3, local persistence.
