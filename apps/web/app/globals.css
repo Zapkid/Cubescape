@@ -47,6 +47,28 @@ input {
 .dim { color: #8890a4; }
 .small { font-size: 12px; }
 
+/* keyboard navigation must be visible */
+button:focus-visible,
+input:focus-visible,
+a:focus-visible {
+  outline: 2px solid #2dd4bf;
+  outline-offset: 2px;
+}
+
+/* respect vestibular-safe preferences */
+@media (prefers-reduced-motion: reduce) {
+  .cube3d,
+  .landing-grid,
+  .feed-item,
+  .ekg polyline,
+  .dmg-flash {
+    animation: none !important;
+  }
+  * {
+    transition-duration: 0.01ms !important;
+  }
+}
+
 /* ---------- overlays ---------- */
 .overlay {
   position: absolute;
@@ -555,4 +577,4 @@ input {
   color: #8890a4;
 }
 .join-foot { margin-top: 18px; text-align: center; line-height: 1.7; }
-.dimmer { color: #565e72; }
+.dimmer { color: #7a8296; }
