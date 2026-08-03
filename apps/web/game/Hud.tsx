@@ -56,6 +56,7 @@ export function Hud({ net }: { net: NetClient }) {
   const pointerLocked = useGame((s) => s.pointerLocked);
   const lastCorrection = useGame((s) => s.lastCorrection);
   const interactHint = useGame((s) => s.interactHint);
+  const hurtNonce = useGame((s) => s.hurtNonce);
 
   useEffect(() => {
     const t = setInterval(() => {
@@ -91,6 +92,8 @@ export function Hud({ net }: { net: NetClient }) {
 
   return (
     <div className="overlay">
+      {/* damage flash — keyed so every hit restarts the animation */}
+      {hurtNonce > 0 ? <div key={hurtNonce} className="dmg-flash" /> : null}
       {/* top-left: room + seed */}
       <div className="hud-top-left">
         <RoomLabel snap={snap} />

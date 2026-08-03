@@ -566,7 +566,14 @@ export class Simulation {
           }
           this.emit({ t: "hit", mobId: mob.id, room: room.coordId, amount: e.amount });
           if (mob.hp <= 0) {
-            this.emit({ t: "mobDie", mobId: mob.id, kind: mob.kind, room: room.coordId });
+            this.emit({
+              t: "mobDie",
+              mobId: mob.id,
+              kind: mob.kind,
+              room: room.coordId,
+              x: mob.x,
+              z: mob.z,
+            });
             if (actorId && !mob.friendly) {
               const killer = this.state.players.get(actorId);
               if (killer) {

@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
-import { Billboard, Text } from "@react-three/drei";
+import { Billboard, Sparkles, Text } from "@react-three/drei";
 import * as THREE from "three";
 import {
   ARCHETYPE_LIGHTING,
@@ -92,8 +92,19 @@ export function RoomView3D({
         distance={18}
         decay={1.3}
       />
+      {/* drifting dust motes catch the room light */}
+      <Sparkles
+        count={34}
+        scale={[8.4, 2.3, 8.4]}
+        position={[4.5, 1.3, 4.5]}
+        size={1.6}
+        speed={0.22}
+        opacity={0.3}
+        color={lighting.point}
+      />
       <Floor tiles={tiles} room={room} net={net} accent={lighting.point} />
       <Walls room={room} accent={lighting.point} />
+      <CornerDressing />
       <CeilingCircuits room={room} accent={lighting.point} />
       <Doors room={room} myCharId={myCharId} />
       <Props template={template} room={room} myCharId={myCharId} net={net} />
@@ -389,6 +400,45 @@ function Walls({ room, accent }: { room: RoomView; accent: string }) {
   );
 }
 
+/** corner columns + pipe runs along the wall tops — the teaser's industrial relief */
+function CornerDressing() {
+  const corners: [number, number][] = [
+    [0.42, 0.42],
+    [8.58, 0.42],
+    [0.42, 8.58],
+    [8.58, 8.58],
+  ];
+  return (
+    <group>
+      {corners.map(([x, z], i) => (
+        <group key={i}>
+          <mesh position={[x, WALL_H / 2, z]}>
+            <boxGeometry args={[0.42, WALL_H, 0.42]} />
+            <meshStandardMaterial color="#20202e" roughness={0.85} />
+          </mesh>
+          <mesh position={[x, WALL_H / 2, z]} rotation={[0, Math.PI / 4, 0]}>
+            <boxGeometry args={[0.34, WALL_H, 0.34]} />
+            <meshStandardMaterial color="#262636" roughness={0.85} />
+          </mesh>
+        </group>
+      ))}
+      {/* pipe runs just under the ceiling on the N and S walls */}
+      <mesh position={[4.5, WALL_H - 0.18, 0.34]} rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.07, 0.07, 8.4, 8]} />
+        <meshStandardMaterial color="#2b2b3c" roughness={0.6} metalness={0.4} />
+      </mesh>
+      <mesh position={[4.5, WALL_H - 0.34, 0.34]} rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.045, 0.045, 8.4, 8]} />
+        <meshStandardMaterial color="#232330" roughness={0.6} metalness={0.4} />
+      </mesh>
+      <mesh position={[4.5, WALL_H - 0.18, 8.66]} rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.07, 0.07, 8.4, 8]} />
+        <meshStandardMaterial color="#2b2b3c" roughness={0.6} metalness={0.4} />
+      </mesh>
+    </group>
+  );
+}
+
 /** glowing circuit traces across the ceiling — the cube is a machine */
 function CeilingCircuits({ room, accent }: { room: RoomView; accent: string }) {
   const strips = useMemo(() => {
@@ -540,6 +590,30 @@ function Door({
           emissiveIntensity={d.open ? 0 : 0.18}
         />
       </mesh>
+      {/* light spills through an open doorway onto the floor */}
+      {d.open ? (
+        <mesh
+          position={
+            d.face === "N"
+              ? [0, 0.012, 0.75]
+              : d.face === "S"
+                ? [0, 0.012, -0.75]
+                : d.face === "W"
+                  ? [0.75, 0.012, 0]
+                  : [-0.75, 0.012, 0]
+          }
+          rotation={[-Math.PI / 2, 0, 0]}
+        >
+          <planeGeometry args={horizontal ? [1.15, 1.5] : [1.5, 1.15]} />
+          <meshBasicMaterial
+            color={tint}
+            transparent
+            opacity={0.11}
+            depthWrite={false}
+            blending={THREE.AdditiveBlending}
+          />
+        </mesh>
+      ) : null}
       {labelVisible ? (
         <Text
           position={horizontal ? [0, 2.05, d.face === "N" ? 0.35 : -0.35] : [d.face === "W" ? 0.35 : -0.35, 2.05, 0]}
@@ -743,10 +817,14 @@ function KeyPedestal({ x, z, room }: { x: number; z: number; room: RoomView }) {
         <meshStandardMaterial color="#2c2440" />
       </mesh>
       {room.keyColor && !room.keyTaken ? (
-        <mesh ref={gem} position={[0, 1.15, 0]}>
-          <octahedronGeometry args={[0.22]} />
-          <meshStandardMaterial color={color} emissive={color} emissiveIntensity={1.4} />
-        </mesh>
+        <>
+          <mesh ref={gem} position={[0, 1.15, 0]}>
+            <octahedronGeometry args={[0.22]} />
+            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={1.8} />
+          </mesh>
+          <pointLight position={[0, 1.2, 0]} color={color} intensity={3.5} distance={4.5} />
+          <Sparkles count={12} scale={[0.9, 1, 0.9]} position={[0, 1.15, 0]} size={2} speed={0.5} color={color} />
+        </>
       ) : null}
     </group>
   );
@@ -950,17 +1028,26 @@ function Spikes({
 
   if (spikeCells.length === 0) return null;
   return (
-    <group ref={group}>
+    <group>
+      {/* mechanical mounts stay put while the spikes piston */}
       {spikeCells.map((c) => (
-        <mesh
-          key={`${c.x},${c.z}`}
-          position={[c.x + 0.5, -0.5, c.z + 0.5]}
-          userData={{ z: c.z }}
-        >
-          <coneGeometry args={[0.3, 0.9, 6]} />
-          <meshStandardMaterial color="#c23048" emissive="#ff2f4e" emissiveIntensity={1.1} />
+        <mesh key={`m${c.x},${c.z}`} position={[c.x + 0.5, 0.05, c.z + 0.5]}>
+          <cylinderGeometry args={[0.34, 0.4, 0.1, 8]} />
+          <meshStandardMaterial color="#33222a" roughness={0.7} metalness={0.3} />
         </mesh>
       ))}
+      <group ref={group}>
+        {spikeCells.map((c) => (
+          <mesh
+            key={`${c.x},${c.z}`}
+            position={[c.x + 0.5, -0.5, c.z + 0.5]}
+            userData={{ z: c.z }}
+          >
+            <coneGeometry args={[0.3, 0.9, 6]} />
+            <meshStandardMaterial color="#c23048" emissive="#ff2f4e" emissiveIntensity={1.1} />
+          </mesh>
+        ))}
+      </group>
     </group>
   );
 }

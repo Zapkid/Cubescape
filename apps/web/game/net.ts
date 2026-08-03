@@ -134,6 +134,15 @@ export class NetClient {
   attackAnims = new Map<string, number>();
   /** mobId -> ms timestamp of last damage taken (white hit-flash) */
   hitFlashes = new Map<string, number>();
+  /** mob death VFX queue */
+  private deathBursts: { room: string; x: number; z: number; at: number }[] = [];
+
+  /** live death bursts (auto-pruned) */
+  bursts(room: string): { x: number; z: number; at: number }[] {
+    const now = Date.now();
+    this.deathBursts = this.deathBursts.filter((b) => now - b.at < 700);
+    return this.deathBursts.filter((b) => b.room === room);
+  }
 
   async connect(code: string, name: string, charId: string | null, seed?: number): Promise<void> {
     const url =
@@ -164,6 +173,24 @@ export class NetClient {
         }
         if (e.t === "hit" && typeof e.mobId === "string") {
           this.hitFlashes.set(e.mobId, Date.now());
+        }
+        if (e.t === "hit" && e.playerId === this.room?.sessionId) {
+          useGame.getState().setHurt();
+        }
+        if (e.t === "breach") {
+          useGame.getState().setShake();
+        }
+        if (
+          e.t === "mobDie" &&
+          typeof e.x === "number" &&
+          typeof e.z === "number"
+        ) {
+          this.deathBursts.push({
+            room: String(e.room),
+            x: e.x,
+            z: e.z,
+            at: Date.now(),
+          });
         }
         if (e.t === "ping") {
           useGame.getState().addPing({

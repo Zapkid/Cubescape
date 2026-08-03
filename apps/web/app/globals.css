@@ -281,6 +281,19 @@ input {
   background: #4ade80;
 }
 
+/* ---------- damage flash ---------- */
+.dmg-flash {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 42%, rgba(244, 63, 94, 0.42));
+  animation: dmgFade 0.5s ease-out forwards;
+}
+@keyframes dmgFade {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
 /* ---------- downed ---------- */
 .downed {
   background: radial-gradient(circle, transparent 30%, rgba(120, 10, 25, 0.45));

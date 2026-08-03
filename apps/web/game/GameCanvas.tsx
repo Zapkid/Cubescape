@@ -143,6 +143,14 @@ function GameScene({ net }: { net: NetClient }) {
     desired.x = Math.min(8.55, Math.max(0.45, desired.x));
     desired.z = Math.min(8.55, Math.max(0.45, desired.z));
     camera.position.lerp(desired, Math.min(1, dt * 14));
+    // impact shake, decaying over 300ms
+    const shakeAge = Date.now() - g.shakeAt;
+    if (shakeAge < 300) {
+      const k = (1 - shakeAge / 300) * 0.06;
+      camera.position.x += (Math.random() - 0.5) * k;
+      camera.position.y += (Math.random() - 0.5) * k;
+      camera.position.z += (Math.random() - 0.5) * k;
+    }
     camera.lookAt(target);
   });
 

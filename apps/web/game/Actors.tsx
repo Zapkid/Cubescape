@@ -52,6 +52,79 @@ export function Actors({ net, roomCoord }: { net: NetClient; roomCoord: string }
       {mobs.map(([id]) => (
         <Mob key={id} net={net} roomCoord={roomCoord} mobId={id} />
       ))}
+      <DeathBursts net={net} roomCoord={roomCoord} />
+    </group>
+  );
+}
+
+/** soft fake contact shadow — grounds actors on the floor */
+function BlobShadow({ radius = 0.36 }: { radius?: number }) {
+  return (
+    <mesh position={[0, 0.015, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+      <circleGeometry args={[radius, 20]} />
+      <meshBasicMaterial color="#000000" transparent opacity={0.42} depthWrite={false} />
+    </mesh>
+  );
+}
+
+/** short-lived pop when a mob dies: expanding ring + flying shards */
+function DeathBursts({ net, roomCoord }: { net: NetClient; roomCoord: string }) {
+  const [, force] = useState(0);
+  const lastCount = useRef(0);
+  useFrame(() => {
+    const n = net.bursts(roomCoord).length;
+    if (n !== lastCount.current) {
+      lastCount.current = n;
+      force((v) => v + 1);
+    }
+  });
+  const bursts = net.bursts(roomCoord);
+  return (
+    <group>
+      {bursts.map((b) => (
+        <Burst key={b.at} x={b.x} z={b.z} at={b.at} />
+      ))}
+    </group>
+  );
+}
+
+const SHARD_ANGLES = [0.4, 1.5, 2.6, 3.7, 4.8, 5.9];
+
+function Burst({ x, z, at }: { x: number; z: number; at: number }) {
+  const ring = useRef<THREE.Mesh>(null);
+  const shards = useRef<THREE.Group>(null);
+  useFrame(() => {
+    const age = (Date.now() - at) / 600; // 0..1
+    const t = Math.min(1, age);
+    if (ring.current) {
+      ring.current.scale.setScalar(0.3 + t * 2.2);
+      (ring.current.material as THREE.MeshBasicMaterial).opacity = 0.8 * (1 - t);
+    }
+    if (shards.current) {
+      shards.current.children.forEach((c, i) => {
+        const a = SHARD_ANGLES[i]!;
+        const d = 0.2 + t * 1.1;
+        c.position.set(Math.sin(a) * d, 0.35 + t * 0.9 - t * t * 1.3, Math.cos(a) * d);
+        c.rotation.x = t * 7 + i;
+        c.rotation.y = t * 5;
+        c.scale.setScalar(Math.max(0.01, 1 - t));
+      });
+    }
+  });
+  return (
+    <group position={[x, 0, z]}>
+      <mesh ref={ring} position={[0, 0.06, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.5, 0.62, 24]} />
+        <meshBasicMaterial color="#8adf5a" transparent opacity={0.8} depthWrite={false} />
+      </mesh>
+      <group ref={shards}>
+        {SHARD_ANGLES.map((a) => (
+          <mesh key={a}>
+            <boxGeometry args={[0.11, 0.11, 0.11]} />
+            <meshStandardMaterial color="#68b043" emissive="#8adf5a" emissiveIntensity={1.4} />
+          </mesh>
+        ))}
+      </group>
     </group>
   );
 }
@@ -136,6 +209,7 @@ function PlayerRig({ net, sessionId }: { net: NetClient; sessionId: string }) {
 
   return (
     <group ref={group}>
+      <BlobShadow radius={0.38} />
       <group ref={body} position={[0, 0.62, 0]}>
         {/* rounded astronaut body: head and torso merge into one soft capsule */}
         <mesh castShadow>
@@ -388,6 +462,7 @@ function Mob({
 
   return (
     <group ref={group}>
+      <BlobShadow radius={kind === "slime" ? 0.32 : 0.4} />
       {kind === "slime" ? (
         <group>
           <mesh ref={blob} position={[0, 0.32, 0]} castShadow>

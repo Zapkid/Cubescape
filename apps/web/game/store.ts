@@ -35,6 +35,10 @@ interface GameStore {
   /** divergence debug readout */
   lastCorrection: number;
   interactHint: string;
+  /** increments when the local player takes damage (drives the red flash) */
+  hurtNonce: number;
+  /** ms timestamp of the last camera-shake trigger */
+  shakeAt: number;
 
   setConnected(v: boolean, err?: string | null): void;
   setSession(id: string): void;
@@ -46,6 +50,8 @@ interface GameStore {
   setPointerLocked(v: boolean): void;
   setLastCorrection(v: number): void;
   setInteractHint(v: string): void;
+  setHurt(): void;
+  setShake(): void;
 }
 
 let idCounter = 1;
@@ -64,6 +70,8 @@ export const useGame = create<GameStore>((set) => ({
   pointerLocked: false,
   lastCorrection: 0,
   interactHint: "",
+  hurtNonce: 0,
+  shakeAt: 0,
 
   setConnected: (v, err = null) => set({ connected: v, connectionError: err }),
   setSession: (id) => set({ sessionId: id }),
@@ -82,6 +90,8 @@ export const useGame = create<GameStore>((set) => ({
   setPointerLocked: (v) => set({ pointerLocked: v }),
   setLastCorrection: (v) => set({ lastCorrection: v }),
   setInteractHint: (v) => set({ interactHint: v }),
+  setHurt: () => set((s) => ({ hurtNonce: s.hurtNonce + 1, shakeAt: Date.now() })),
+  setShake: () => set({ shakeAt: Date.now() }),
 }));
 
 export function describeEvent(e: ServerEvent): string | null {
