@@ -67,6 +67,28 @@ pnpm soak -- --bots 4 --seconds 150 --seed 7 --solve  # bots must escape
 CUBE_DEBUG=1 pnpm dev                                  # ASCII cube map per match
 ```
 
+## Deploy
+
+**Server → Fly.io** (Dockerfile + `fly.toml` included; image is smoke-tested):
+
+```bash
+brew install flyctl
+fly auth login
+fly apps create cubescape-server   # name taken? pick another & update fly.toml + apps/web/.env.production
+fly deploy
+curl https://cubescape-server.fly.dev/health
+```
+
+**Web → Vercel:** import the GitHub repo at vercel.com/new, set **Root Directory**
+to `apps/web` (framework auto-detects Next.js), deploy. The client's server URL is
+baked from `apps/web/.env.production` (`NEXT_PUBLIC_SERVER_URL=wss://cubescape-server.fly.dev`).
+
+**CI deploys:** pushing a `v*` tag redeploys the server via GitHub Actions —
+add a `FLY_API_TOKEN` repo secret (`fly tokens create deploy`).
+
+Notes: one Fly machine only for now (Colyseus rooms are in-memory); match-result
+JSONL persistence is ephemeral on Fly — swap in Supabase before caring about it.
+
 ## Status / roadmap
 
 MVP vertical slice: 10 templates, 3 characters, PvE, 3×3×3, local persistence.
