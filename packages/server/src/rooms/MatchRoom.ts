@@ -65,14 +65,28 @@ export class MatchRoom extends Room<MatchState> {
     });
     this.onMessage("select", (client, raw) => {
       const parsed = SelectCharMsg.safeParse(raw);
-      if (!parsed.success || this.state.phase !== "lobby") return;
+      if (!parsed.success) return;
       const p = this.state.players.get(client.sessionId);
-      if (p) {
+      if (!p) return;
+      if (this.state.phase === "lobby") {
         p.charId = parsed.data.charId;
         const def = CHARACTERS[parsed.data.charId];
         p.maxHp = def.hp;
         p.hp = def.hp;
+      } else if (this.state.phase === "running" && !p.charId) {
+        // late joiner (daily rooms) picking a runner mid-match
+        p.charId = parsed.data.charId;
+        this.sim.spawnPlayerAtStart(p);
+        this.broadcast("ev", [
+          { t: "message", text: `${p.name} drops into the cube.` },
+        ]);
       }
+    });
+    this.onMessage("abandon", (client) => {
+      if (this.state.phase !== "running") return;
+      const p = this.state.players.get(client.sessionId);
+      if (!p) return;
+      this.sim.abandonMatch(p.name);
     });
     this.onMessage("ready", (client, raw) => {
       const parsed = ReadyMsg.safeParse(raw);
@@ -117,13 +131,13 @@ export class MatchRoom extends Room<MatchState> {
     }
     this.state.players.set(client.sessionId, p);
     if (this.state.phase !== "lobby") {
-      // late joiner drops into the running match at spawn
-      if (!p.charId) {
-        p.charId = "scout";
-        p.maxHp = CHARACTERS.scout.hp;
-        p.hp = p.maxHp;
+      if (p.charId) {
+        this.sim.spawnPlayerAtStart(p);
+      } else {
+        // late joiner without a pick (daily rooms): wait in char select,
+        // spawn on their "select" message
+        p.roomCoord = "";
       }
-      this.sim.spawnPlayerAtStart(p);
     }
   }
 

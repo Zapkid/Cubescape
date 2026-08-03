@@ -136,6 +136,12 @@ export class NetClient {
   hitFlashes = new Map<string, number>();
   /** mob death VFX queue */
   private deathBursts: { room: string; x: number; z: number; at: number }[] = [];
+  /** tester diagnostics */
+  fps = 0;
+  rttMs = 0;
+  eventLog: { at: number; e: ServerEvent }[] = [];
+  private rttSample: { seq: number; at: number } | null = null;
+  private lastFrameForFps = 0;
 
   /** live death bursts (auto-pruned) */
   bursts(room: string): { x: number; z: number; at: number }[] {
@@ -166,6 +172,8 @@ export class NetClient {
 
     this.room.onMessage("ev", (events: ServerEvent[]) => {
       for (const e of events) {
+        this.eventLog.push({ at: Date.now(), e });
+        if (this.eventLog.length > 40) this.eventLog.shift();
         const text = describeEvent(e);
         if (text) useGame.getState().pushFeed(text);
         if (e.t === "ability" && typeof e.sid === "string") {
@@ -248,7 +256,15 @@ export class NetClient {
 
   /** called from the render loop each frame so the heartbeat can stand down */
   markFrame(): void {
-    this.lastFrameAt = performance.now();
+    const now = performance.now();
+    if (this.lastFrameForFps > 0) {
+      const dt = now - this.lastFrameForFps;
+      if (dt > 0 && dt < 500) {
+        this.fps = this.fps * 0.95 + (1000 / dt) * 0.05;
+      }
+    }
+    this.lastFrameForFps = now;
+    this.lastFrameAt = now;
   }
 
   /** advance local prediction with fixed steps; call each frame with wall dt */
@@ -298,13 +314,23 @@ export class NetClient {
     if (!this.room || this.outbox.length === 0) return;
     while (this.outbox.length > 0) {
       const steps = this.outbox.splice(0, 8);
+      // sample one in-flight seq for round-trip measurement
+      if (!this.rttSample && steps.length > 0) {
+        this.rttSample = { seq: steps[steps.length - 1]!.seq, at: performance.now() };
+      }
       this.room.send("input", { steps });
     }
   }
 
   private reconcile(): void {
     const me = this.me;
-    if (!me || me.roomCoord !== this.lastRoomCoord) return;
+    if (!me) return;
+    if (this.rttSample && me.lastProcessedSeq >= this.rttSample.seq) {
+      const rtt = performance.now() - this.rttSample.at;
+      this.rttMs = this.rttMs === 0 ? rtt : this.rttMs * 0.8 + rtt * 0.2;
+      this.rttSample = null;
+    }
+    if (me.roomCoord !== this.lastRoomCoord) return;
     const ack = me.lastProcessedSeq;
     this.pending = this.pending.filter((p) => p.seq > ack);
     // rewind to server state and replay unacked inputs
@@ -382,6 +408,48 @@ export class NetClient {
   }
   ping(kind: string, x: number, z: number): void {
     this.room?.send("ping", { kind, x, z });
+  }
+  abandon(): void {
+    this.room?.send("abandon", {});
+  }
+  /** one-click diagnostics for bug reports */
+  debugReport(): string {
+    const s = this.state;
+    const me = this.me;
+    const players: unknown[] = [];
+    s?.players.forEach((p, id) =>
+      players.push({
+        id: id.slice(0, 6),
+        name: p.name,
+        char: p.charId,
+        room: p.roomCoord,
+        hp: p.hp,
+        downed: p.downed,
+      }),
+    );
+    return JSON.stringify(
+      {
+        at: new Date().toISOString(),
+        url: typeof window !== "undefined" ? window.location.href : "",
+        userAgent: typeof navigator !== "undefined" ? navigator.userAgent : "",
+        phase: s?.phase,
+        seed: s?.seed,
+        tick: s?.tick,
+        fps: Math.round(this.fps),
+        rttMs: Math.round(this.rttMs),
+        divergence: useGame.getState().lastCorrection,
+        me: me
+          ? { room: me.roomCoord, x: me.x, z: me.z, hp: me.hp, seq: me.lastProcessedSeq }
+          : null,
+        players,
+        recentEvents: this.eventLog.slice(-15).map((l) => ({
+          dt: Math.round((Date.now() - l.at) / 100) / 10,
+          ...l.e,
+        })),
+      },
+      null,
+      2,
+    );
   }
   emote(kind: string): void {
     this.room?.send("emote", { kind });

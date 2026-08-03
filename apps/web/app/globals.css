@@ -83,9 +83,11 @@ a:focus-visible {
 }
 .overlay.center > * { pointer-events: auto; }
 .overlay.lobby { background: radial-gradient(circle at 50% 30%, #101024, #05050a); }
-/* must never swallow the click that requests pointer lock on the canvas */
+/* the hint text passes clicks through to the canvas (pointer lock),
+   but the pause-menu buttons must stay clickable */
 .click-capture { background: rgba(5, 5, 10, 0.35); pointer-events: none; }
-.click-capture > * { pointer-events: none !important; }
+.click-capture .panel { pointer-events: none; }
+.click-capture .pause-menu { pointer-events: auto; }
 
 .panel {
   background: rgba(14, 14, 26, 0.92);
@@ -302,6 +304,76 @@ a:focus-visible {
   border-radius: 50%;
   background: #4ade80;
 }
+
+/* ---------- pause menu ---------- */
+.click-capture {
+  flex-direction: column;
+  gap: 14px;
+}
+.pause-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 280px;
+  pointer-events: auto;
+}
+.pause-menu button {
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  padding: 11px 16px;
+}
+.pause-menu .danger {
+  border-color: #7a2a38;
+  color: #f4a0ae;
+}
+.pause-menu .danger:hover {
+  background: #3a1520;
+  border-color: #f43f5e;
+}
+
+/* ---------- debug panel ---------- */
+.debug-panel {
+  position: absolute;
+  left: 16px;
+  top: 64px;
+  width: 380px;
+  max-height: 70vh;
+  overflow-y: auto;
+  background: rgba(8, 10, 18, 0.94);
+  border: 1px solid #2dd4bf55;
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 11px;
+  pointer-events: auto;
+  z-index: 30;
+}
+.debug-title {
+  color: #2dd4bf;
+  letter-spacing: 0.2em;
+  font-size: 11px;
+  margin-bottom: 8px;
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+}
+.debug-copied { color: #4ade80; margin-left: auto; }
+.debug-table { width: 100%; border-collapse: collapse; }
+.debug-table td {
+  padding: 2.5px 6px 2.5px 0;
+  vertical-align: top;
+  border-bottom: 1px solid #1b1f30;
+}
+.debug-table td:first-child { color: #667; white-space: nowrap; width: 90px; }
+.debug-events {
+  margin-top: 8px;
+  max-height: 120px;
+  overflow-y: auto;
+  border-top: 1px solid #1b1f30;
+  padding-top: 6px;
+}
+.debug-event { padding: 1px 0; color: #aeb6c8; }
+.debug-actions { display: flex; gap: 8px; margin-top: 10px; }
+.debug-actions button { font-size: 11px; padding: 7px 10px; flex: 1; }
 
 /* ---------- damage flash ---------- */
 .dmg-flash {

@@ -57,6 +57,8 @@ export function Hud({ net }: { net: NetClient }) {
   const lastCorrection = useGame((s) => s.lastCorrection);
   const interactHint = useGame((s) => s.interactHint);
   const hurtNonce = useGame((s) => s.hurtNonce);
+  const [debugOpen, setDebugOpen] = useState(false);
+  const [confirmEnd, setConfirmEnd] = useState(false);
 
   useEffect(() => {
     const t = setInterval(() => {
@@ -66,6 +68,14 @@ export function Hud({ net }: { net: NetClient }) {
     }, 120);
     return () => clearInterval(t);
   }, [net]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code === "Backquote") setDebugOpen((v) => !v);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   // once the match ended, the scoreboard is the terminal screen — even after
   // the room disposes and the socket drops
@@ -86,9 +96,11 @@ export function Hud({ net }: { net: NetClient }) {
   if (snap.phase === "lobby") return <Lobby net={net} snap={snap} />;
   if (snap.phase === "complete") return <Scoreboard snap={snap} />;
   if (!snap.me) return null;
+  // late joiner (daily rooms): match is running but we haven't picked a runner
+  if (!snap.me.charId) return <LateJoinSelect net={net} snap={snap} />;
 
   const me = snap.me;
-  const def = CHARACTERS[(me.charId || "scout") as CharId];
+  const def = CHARACTERS[me.charId as CharId];
 
   return (
     <div className="overlay">
@@ -113,11 +125,58 @@ export function Hud({ net }: { net: NetClient }) {
       </div>
 
       {/* crosshair-ish focus dot + interact hint */}
-      {pointerLocked ? <div className="dot" /> : (
+      {pointerLocked ? (
+        <div className="dot" />
+      ) : (
         <div className="overlay center click-capture">
-          <div className="panel dim">click to capture mouse</div>
+          <div className="panel dim">click to play</div>
+          <div className="pause-menu">
+            <button
+              onClick={() => {
+                document.querySelector("canvas")?.requestPointerLock();
+              }}
+            >
+              ▶ RESUME
+            </button>
+            <button
+              onClick={() => {
+                navigator.clipboard
+                  .writeText(window.location.origin + window.location.pathname)
+                  .catch(() => undefined);
+              }}
+            >
+              COPY INVITE LINK
+            </button>
+            <button onClick={() => setDebugOpen((v) => !v)}>
+              DEBUG (`)
+            </button>
+            {confirmEnd ? (
+              <button
+                className="danger"
+                onClick={() => {
+                  net.abandon();
+                  setConfirmEnd(false);
+                }}
+              >
+                CONFIRM END — banks partial EXP
+              </button>
+            ) : (
+              <button className="danger" onClick={() => setConfirmEnd(true)}>
+                END MATCH
+              </button>
+            )}
+            <button
+              onClick={() => {
+                net.dispose();
+                window.location.href = "/";
+              }}
+            >
+              LEAVE TO MENU
+            </button>
+          </div>
         </div>
       )}
+      {debugOpen ? <DebugPanel net={net} snap={snap} /> : null}
       {interactHint ? <div className="interact-hint">{interactHint}</div> : null}
 
       {/* downed overlay */}
@@ -346,6 +405,113 @@ function Lobby({ net, snap }: { net: NetClient; snap: Snapshot }) {
           </button>
         </div>
         <p className="dim small">match starts when every runner is ready</p>
+      </div>
+    </div>
+  );
+}
+
+// ---------------- late join (daily rooms) ----------------
+
+function LateJoinSelect({ net, snap }: { net: NetClient; snap: Snapshot }) {
+  return (
+    <div className="overlay center lobby">
+      <div className="panel wide">
+        <h1 className="logo-mark centered">
+          <PixelLogo height={36} />
+          <span className="find-exit">MATCH IN PROGRESS</span>
+        </h1>
+        <p className="dim">
+          This cube is already being run (seed {snap.seed}). Pick a runner and
+          drop in — teammates on the map are marked in green.
+        </p>
+        <div className="char-row">
+          {Object.values(CHARACTERS).map((c) => (
+            <button
+              key={c.id}
+              className="char-card"
+              style={{ borderColor: c.color }}
+              onClick={() => net.selectChar(c.id)}
+            >
+              <div className="char-name" style={{ color: c.color }}>
+                {c.name}
+              </div>
+              <div className="char-stats small">
+                HP {c.hp} · SPD {c.speedMult}× · MGT {c.might} · WIT {c.wits}
+              </div>
+              <ul className="small dim char-abilities">
+                {c.abilities.map((a) => (
+                  <li key={a}>{ABILITIES[a].name}</li>
+                ))}
+              </ul>
+            </button>
+          ))}
+        </div>
+        <p className="dim small">click a runner to spawn immediately</p>
+      </div>
+    </div>
+  );
+}
+
+// ---------------- tester debug panel ----------------
+
+function DebugPanel({ net, snap }: { net: NetClient; snap: Snapshot }) {
+  const g = useGame.getState();
+  const [copied, setCopied] = useState("");
+  const room = snap.me ? net.state?.rooms.get(snap.me.roomCoord) : null;
+  let mobsAlive = 0;
+  room?.mobs.forEach((m) => {
+    if (!m.friendly && m.hp > 0) mobsAlive++;
+  });
+  const copy = (label: string, text: string) => {
+    navigator.clipboard.writeText(text).then(
+      () => setCopied(label),
+      () => setCopied("copy failed"),
+    );
+    setTimeout(() => setCopied(""), 1500);
+  };
+  return (
+    <div className="debug-panel">
+      <div className="debug-title">
+        DEBUG <span className="dim">— ` to close</span>
+        {copied ? <span className="debug-copied">{copied} ✓</span> : null}
+      </div>
+      <table className="debug-table">
+        <tbody>
+          <tr><td>fps / rtt</td><td>{Math.round(net.fps)} / {Math.round(net.rttMs)}ms</td></tr>
+          <tr><td>seed · tick</td><td>{snap.seed} · {snap.tick}</td></tr>
+          <tr><td>phase</td><td>{snap.phase} {snap.matchResult}</td></tr>
+          <tr><td>room</td><td>{snap.currentCoord} ({room?.templateId ?? "?"}{room?.cleared ? " ✓" : ""})</td></tr>
+          <tr><td>pos</td><td>{g.px.toFixed(2)}, {g.pz.toFixed(2)} · yaw {g.yaw.toFixed(2)}</td></tr>
+          <tr><td>divergence</td><td>{g.lastCorrection.toFixed(3)}m</td></tr>
+          <tr><td>hp / keys</td><td>{snap.me ? `${Math.ceil(snap.me.hp)}/${snap.me.maxHp}` : "-"} · [{snap.me?.keys.join(", ") ?? ""}]</td></tr>
+          <tr><td>mobs in room</td><td>{mobsAlive}</td></tr>
+          <tr><td>doors</td><td>{room?.doors.map((d) => `${d.face}:${d.gateType}${d.open ? "✓" : "✗"}`).join(" ") ?? "-"}</td></tr>
+          <tr><td>players</td><td>{snap.players.map((p) => `${p.name}@${p.roomCoord}${p.downed ? "↓" : ""}`).join(" · ")}</td></tr>
+        </tbody>
+      </table>
+      <div className="debug-events">
+        {net.eventLog.slice(-8).map((l, i) => (
+          <div key={i} className="debug-event">
+            <span className="dim">{((Date.now() - l.at) / 1000).toFixed(0)}s</span>{" "}
+            {l.e.t}
+            {typeof l.e.text === "string" ? `: ${l.e.text}` : ""}
+          </div>
+        ))}
+      </div>
+      <div className="debug-actions">
+        <button onClick={() => copy("report", net.debugReport())}>
+          COPY BUG REPORT
+        </button>
+        <button
+          onClick={() =>
+            copy(
+              "link",
+              `${window.location.origin}${window.location.pathname}?seed=${snap.seed}`,
+            )
+          }
+        >
+          COPY SEED LINK
+        </button>
       </div>
     </div>
   );

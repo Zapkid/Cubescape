@@ -781,6 +781,26 @@ export class Simulation {
     );
   }
 
+  /** any runner can pull the plug — failed runs still bank EXP */
+  abandonMatch(byName: string): void {
+    if (this.state.phase !== "running") return;
+    this.state.phase = "complete";
+    this.state.matchResult = "abandoned";
+    this.state.endedTick = this.state.tick;
+    this.state.players.forEach((p) => {
+      p.exp = calculateExp({
+        roomsVisited: p.roomsVisited,
+        objectivesCleared: p.objectives,
+        mobKills: p.kills,
+        deaths: p.deaths,
+        reachedExit: false,
+        hazardRoomsClearedNoDeath: 0,
+        finishedAlive: false,
+      });
+    });
+    this.emit({ t: "matchComplete", result: "abandoned", by: byName });
+  }
+
   private completeMatch(): void {
     this.state.phase = "complete";
     this.state.matchResult = "victory";

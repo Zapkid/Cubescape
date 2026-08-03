@@ -11,6 +11,8 @@ const nextConfig = {
     return config;
   },
   async headers() {
+    // next dev needs eval + HMR websockets; only enforce CSP in production
+    if (process.env.NODE_ENV === "development") return [];
     const csp = [
       "default-src 'self'",
       // Next.js inlines its bootstrap scripts; no nonce infra yet
