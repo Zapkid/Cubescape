@@ -13,15 +13,20 @@ const nextConfig = {
   async headers() {
     // next dev needs eval + HMR websockets; only enforce CSP in production
     if (process.env.NODE_ENV === "development") return [];
+    if (process.env.DISABLE_CSP === "1") return []; // debug switch
     const csp = [
       "default-src 'self'",
-      // Next.js inlines its bootstrap scripts; no nonce infra yet
-      "script-src 'self' 'unsafe-inline'",
+      // 'unsafe-inline': Next.js inlines bootstrap scripts (no nonce infra yet).
+      // blob:: troika-three-text (drei <Text>) importScripts() blob: URLs INSIDE
+      // its worker; worker-internal loads are governed by script-src, and
+      // blocking them kills the entire R3F scene (black screen, HUD alive).
+      "script-src 'self' 'unsafe-inline' blob:",
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob:",
       "font-src 'self' data:",
-      // colyseus matchmake (https) + game socket (wss)
-      "connect-src 'self' https://cubescape-server.fly.dev wss://cubescape-server.fly.dev https://vitals.vercel-insights.com",
+      // colyseus matchmake (https) + game socket (wss); jsdelivr hosts the
+      // unicode-font-resolver data troika fetches for <Text> glyphs
+      "connect-src 'self' https://cubescape-server.fly.dev wss://cubescape-server.fly.dev https://vitals.vercel-insights.com https://cdn.jsdelivr.net",
       // troika text renders glyphs in a blob worker
       "worker-src 'self' blob:",
       "media-src 'self' blob:",
@@ -29,7 +34,6 @@ const nextConfig = {
       "base-uri 'self'",
       "form-action 'self'",
       "frame-ancestors 'none'",
-      "upgrade-insecure-requests",
     ].join("; ");
     return [
       {
