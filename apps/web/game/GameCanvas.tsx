@@ -43,11 +43,19 @@ export function GameCanvas({ net }: { net: NetClient }) {
 
 function GameScene({ net }: { net: NetClient }) {
   const [roomCoord, setRoomCoord] = useState("");
-  const [templateId, setTemplateId] = useState("");
   const [phase, setPhase] = useState("lobby");
 
   // pointer lock + mouse look
-  const { gl } = useThree();
+  const { gl, scene, camera } = useThree();
+  useEffect(() => {
+    // merged into the page-level dev hook for e2e debugging
+    const w = window as unknown as { __cubescape?: Record<string, unknown> };
+    if (w.__cubescape) {
+      w.__cubescape.scene = scene;
+      w.__cubescape.camera = camera;
+      w.__cubescape.gl = gl;
+    }
+  }, [scene, camera, gl]);
   useEffect(() => {
     const el = gl.domElement;
     const onClick = () => {
@@ -85,19 +93,28 @@ function GameScene({ net }: { net: NetClient }) {
     };
   }, [gl, net]);
 
+  // room/phase tracking runs on a plain interval: setState from inside useFrame
+  // can starve under throttled/virtualized schedulers and the scene never appears
+  useEffect(() => {
+    const t = setInterval(() => {
+      const s = net.state;
+      const me = net.me;
+      if (!s || !me) return;
+      setPhase((p) => (p === s.phase ? p : s.phase));
+      if (me.roomCoord) {
+        setRoomCoord((rc) => (rc === me.roomCoord ? rc : me.roomCoord));
+      }
+    }, 120);
+    return () => clearInterval(t);
+  }, [net]);
+
   // main loop: input → prediction → intents → camera
   const stepSfxAt = useRef(0);
   useFrame(({ camera, clock }, dt) => {
     const s = net.state;
     if (!s) return;
-    if (s.phase !== phase) setPhase(s.phase);
     const me = net.me;
     if (!me) return;
-    if (me.roomCoord !== roomCoord) {
-      setRoomCoord(me.roomCoord);
-      const r = s.rooms.get(me.roomCoord);
-      if (r && r.templateId !== templateId) setTemplateId(r.templateId);
-    }
 
     const g = useGame.getState();
     const input = sampleInput(g.yaw);
@@ -155,7 +172,7 @@ function GameScene({ net }: { net: NetClient }) {
   });
 
   const s = net.state;
-  if (!s || !roomCoord || s.phase === "lobby") return null;
+  if (!s || !roomCoord || phase === "lobby") return null;
   const room = s.rooms.get(roomCoord);
   if (!room) return null;
   const myChar = net.me?.charId ?? "";

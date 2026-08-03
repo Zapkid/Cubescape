@@ -42,11 +42,20 @@ export default function MatchPage() {
         : "Runner");
     const seedParam = search.get("seed");
     const seed = seedParam ? Number(seedParam) : seedFromCode(code);
+    const charParam = search.get("char");
+    const char =
+      charParam === "brute" || charParam === "scout" || charParam === "tinker"
+        ? charParam
+        : null;
     net
-      .connect(code, name, null, seed)
+      .connect(code, name, char, seed)
       .then(() => {
         setStatus("up");
         attachInput();
+        // e2e/testing aid: ?char=scout&autoready=1 skips the lobby
+        if (char && search.get("autoready") === "1") {
+          setTimeout(() => net.ready(true), 400);
+        }
         // dev/e2e introspection hook
         (window as unknown as Record<string, unknown>).__cubescape = {
           net,
@@ -73,16 +82,16 @@ export default function MatchPage() {
 
   return (
     <main style={{ position: "fixed", inset: 0 }}>
-      {status === "up" ? (
-        <>
-          <GameCanvas net={net} />
-          <Hud net={net} />
-        </>
-      ) : (
-        <div className="overlay center">
-          <div className="panel dim">connecting…</div>
-        </div>
-      )}
+      {/* The Canvas must mount on the initial client render: mounting it after an
+          async state flip (post-connect) leaves the R3F reconciler root dead —
+          HUD visible, scene permanently black. GameScene renders nothing until
+          the connection is live, so early mounting is free. */}
+      <GameCanvas net={net} />
+      <Hud net={net} />
+      {/* visibility-toggled (not mount-toggled) to keep the child list stable */}
+      <div className="overlay center" style={{ display: status === "up" ? "none" : "flex" }}>
+        <div className="panel dim">connecting…</div>
+      </div>
     </main>
   );
 }
