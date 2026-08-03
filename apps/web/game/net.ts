@@ -96,6 +96,7 @@ export interface StateView {
   phase: string;
   seed: number;
   tick: number;
+  startedTick: number;
   spawn: string;
   exit: string;
   rooms: Map<string, RoomView>;

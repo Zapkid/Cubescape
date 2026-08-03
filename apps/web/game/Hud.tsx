@@ -16,6 +16,7 @@ interface Snapshot {
   phase: string;
   seed: number;
   tick: number;
+  startedTick: number;
   me: PlayerView | null;
   players: PlayerView[];
   revealed: Map<string, string>;
@@ -36,6 +37,7 @@ function snapshot(net: NetClient): Snapshot {
     phase: s?.phase ?? "connecting",
     seed: s?.seed ?? 0,
     tick: s?.tick ?? 0,
+    startedTick: s?.startedTick ?? 0,
     me,
     players,
     revealed: s?.revealed ?? new Map(),
@@ -106,11 +108,20 @@ export function Hud({ net }: { net: NetClient }) {
     <div className="overlay">
       {/* damage flash — keyed so every hit restarts the animation */}
       {hurtNonce > 0 ? <div key={hurtNonce} className="dmg-flash" /> : null}
-      {/* top-left: room + seed */}
+      {/* top-left: room + seed + timer + exp */}
       <div className="hud-top-left">
         <RoomLabel snap={snap} />
+        <div className="hud-meta small">
+          <span className="hud-timer">⏱ {matchClock(snap)}</span>
+          <span className="hud-exp">◆ {me.exp} exp</span>
+          <ExitCompass snap={snap} />
+        </div>
         <div className="dim small">seed {snap.seed} · div {lastCorrection.toFixed(2)}m</div>
+        <TeamPanel snap={snap} />
       </div>
+
+      {/* teammate down alert */}
+      <DownedAlert snap={snap} />
 
       {/* minimap */}
       <Minimap snap={snap} />
@@ -228,6 +239,12 @@ export function Hud({ net }: { net: NetClient }) {
               </div>
             );
           })}
+          <StrikeTile snap={snap} />
+          {me.grappleUntil > snap.tick ? (
+            <div className="buff-chip">
+              GRAPPLE {((me.grappleUntil - snap.tick) / TICK_RATE).toFixed(1)}s
+            </div>
+          ) : null}
         </div>
         <div className="hint-block dim small">
           WASD move · LMB strike · E interact · 1-3 abilities · V ping · T taunt
@@ -256,6 +273,108 @@ function Ekg({ ratio, downed }: { ratio: number; downed: boolean }) {
         style={{ animationDuration: duration }}
       />
     </svg>
+  );
+}
+
+function matchClock(snap: Snapshot): string {
+  const secs = Math.max(0, Math.floor((snap.tick - snap.startedTick) / TICK_RATE));
+  const m = Math.floor(secs / 60);
+  const s = secs % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+/** direction hints toward the exit corner, e.g. "EXIT → E2 S1 U2" */
+function ExitCompass({ snap }: { snap: Snapshot }) {
+  const [cx, cy, cz] = snap.currentCoord.split(",").map(Number);
+  const [ex, ey, ez] = snap.exit.split(",").map(Number);
+  if ([cx, cy, cz, ex, ey, ez].some((n) => Number.isNaN(n))) return null;
+  const dx = (ex ?? 0) - (cx ?? 0);
+  const dy = (ey ?? 0) - (cy ?? 0);
+  const dz = (ez ?? 0) - (cz ?? 0);
+  if (dx === 0 && dy === 0 && dz === 0) {
+    return <span className="hud-compass here">EXIT: THIS ROOM</span>;
+  }
+  const parts: string[] = [];
+  if (dx !== 0) parts.push(`${dx > 0 ? "E" : "W"}${Math.abs(dx)}`);
+  if (dz !== 0) parts.push(`${dz > 0 ? "S" : "N"}${Math.abs(dz)}`);
+  if (dy !== 0) parts.push(`${dy > 0 ? "U" : "D"}${Math.abs(dy)}`);
+  return <span className="hud-compass">EXIT → {parts.join(" ")}</span>;
+}
+
+/** teammate cards: char color, hp, where they are, downed state */
+function TeamPanel({ snap }: { snap: Snapshot }) {
+  const mates = snap.players.filter(
+    (p) => p.sessionId !== snap.me?.sessionId && p.charId,
+  );
+  if (mates.length === 0) return null;
+  return (
+    <div className="team-panel">
+      {mates.map((p) => {
+        const color = CHARACTERS[(p.charId || "scout") as CharId]?.color ?? "#ccc";
+        const together = p.roomCoord === snap.currentCoord;
+        return (
+          <div key={p.sessionId} className={`team-card ${p.downed ? "down" : ""}`}>
+            <span className="team-dot" style={{ background: color }} />
+            <div className="team-info">
+              <div className="team-name" style={{ color }}>
+                {p.name}
+                {!p.connected ? " ⌁" : ""}
+              </div>
+              <div className="team-hp-bar">
+                <div
+                  className="team-hp-fill"
+                  style={{
+                    width: `${(100 * p.hp) / Math.max(1, p.maxHp)}%`,
+                    background: p.downed
+                      ? "#f43f5e"
+                      : p.hp / p.maxHp > 0.35
+                        ? "#4ade80"
+                        : "#f59e0b",
+                  }}
+                />
+              </div>
+              <div className="team-where dim">
+                {p.downed ? "DOWN — " : ""}
+                {together ? "with you" : `[${p.roomCoord}]`}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/** loud banner when a teammate needs a revive */
+function DownedAlert({ snap }: { snap: Snapshot }) {
+  const down = snap.players.find(
+    (p) => p.sessionId !== snap.me?.sessionId && p.downed,
+  );
+  if (!down) return null;
+  const together = down.roomCoord === snap.currentCoord;
+  return (
+    <div className="downed-alert">
+      ⚠ {down.name} is DOWN {together ? "— hold E to revive!" : `in [${down.roomCoord}]`}
+    </div>
+  );
+}
+
+/** the universal LMB strike, slot 3 */
+function StrikeTile({ snap }: { snap: Snapshot }) {
+  const me = snap.me;
+  if (!me) return null;
+  const a = ABILITIES.punch;
+  const cdUntil = me.cooldowns[3] ?? 0;
+  const remaining = Math.max(0, (cdUntil - snap.tick) / TICK_RATE);
+  const pct = Math.min(1, remaining / a.cooldown);
+  return (
+    <div className={`ability compact ${remaining > 0 ? "cooling" : ""}`}>
+      <div className="ability-key">LMB</div>
+      <div className="ability-name">{a.name}</div>
+      {remaining > 0 ? (
+        <div className="ability-cd" style={{ height: `${pct * 100}%` }} />
+      ) : null}
+    </div>
   );
 }
 

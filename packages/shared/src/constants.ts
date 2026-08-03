@@ -47,7 +47,7 @@ export const BYPASS_RANGE = 2.5;
 /** universal light attack — every runner can always fight back */
 export const PUNCH_DAMAGE = 8;
 export const PUNCH_RANGE = 1.7;
-export const PUNCH_COOLDOWN = 0.8;
+export const PUNCH_COOLDOWN = 0.35;
 /** hostile mob spawns are capped at 1 + party size (solo isn't swarmed) */
 export const MOB_PARTY_CAP_BONUS = 1;
 

@@ -51,7 +51,7 @@ export const ABILITIES: Record<AbilityId, AbilityDef> = {
   swing: {
     id: "swing",
     name: "Heavy Swing",
-    cooldown: 4,
+    cooldown: 2.5,
     range: 2.0,
     description: "Wide melee blow. Damages and staggers mobs.",
   },
@@ -100,7 +100,7 @@ export const ABILITIES: Record<AbilityId, AbilityDef> = {
   punch: {
     id: "punch",
     name: "Strike",
-    cooldown: 0.8,
+    cooldown: 0.35,
     range: 1.7,
     description: "Quick close-range hit. Always available.",
   },
