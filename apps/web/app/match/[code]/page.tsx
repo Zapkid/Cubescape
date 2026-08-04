@@ -29,6 +29,7 @@ export default function MatchPage() {
   const search = useSearchParams();
   const [net] = useState(() => new NetClient());
   const [status, setStatus] = useState<"connecting" | "up" | "failed">("connecting");
+  const [statusMsg, setStatusMsg] = useState("connecting…");
   const joined = useRef(false);
 
   useEffect(() => {
@@ -48,7 +49,7 @@ export default function MatchPage() {
         ? charParam
         : null;
     net
-      .connect(code, name, char, seed)
+      .connect(code, name, char, seed, setStatusMsg)
       .then(() => {
         setStatus("up");
         attachInput();
@@ -72,7 +73,14 @@ export default function MatchPage() {
         <div className="panel">
           <h2>Can&apos;t reach the cube</h2>
           <p className="dim">
-            Is the server running? <code>pnpm dev</code> starts it on :2567.
+            The game server didn&apos;t respond — it may still be waking from
+            sleep. Try again in a moment.
+            {process.env.NEXT_PUBLIC_SERVER_URL ? null : (
+              <>
+                {" "}
+                (local dev: <code>pnpm dev</code> starts it on :2567)
+              </>
+            )}
           </p>
           <button onClick={() => window.location.reload()}>retry</button>
         </div>
@@ -90,7 +98,7 @@ export default function MatchPage() {
       <Hud net={net} />
       {/* visibility-toggled (not mount-toggled) to keep the child list stable */}
       <div className="overlay center" style={{ display: status === "up" ? "none" : "flex" }}>
-        <div className="panel dim">connecting…</div>
+        <div className="panel dim">{statusMsg}</div>
       </div>
     </main>
   );

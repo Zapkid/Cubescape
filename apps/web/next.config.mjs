@@ -26,7 +26,8 @@ const nextConfig = {
       "font-src 'self' data:",
       // colyseus matchmake (https) + game socket (wss); jsdelivr hosts the
       // unicode-font-resolver data troika fetches for <Text> glyphs
-      "connect-src 'self' https://cubescape-server.fly.dev wss://cubescape-server.fly.dev https://vitals.vercel-insights.com https://cdn.jsdelivr.net",
+      // both game-server hosts allowed so the URL can switch without a CSP change
+      "connect-src 'self' https://cubescape-server.fly.dev wss://cubescape-server.fly.dev https://cubescape-server.onrender.com wss://cubescape-server.onrender.com https://vitals.vercel-insights.com https://cdn.jsdelivr.net",
       // troika text renders glyphs in a blob worker
       "worker-src 'self' blob:",
       "media-src 'self' blob:",

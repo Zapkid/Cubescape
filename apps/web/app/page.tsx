@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PixelLogo } from "../game/PixelLogo";
+import { prewakeServer } from "../game/net";
 
 function dailyCode(): string {
   const d = new Date();
@@ -35,6 +36,9 @@ export default function Home() {
   useEffect(() => {
     const saved = localStorage.getItem("cubescape:name");
     if (saved) setName(saved);
+    // free-tier server sleeps when idle: start waking it while the player
+    // is still on the landing page
+    prewakeServer();
   }, []);
 
   const go = (target: string) => {

@@ -25,6 +25,22 @@ import { describeEvent, useGame } from "./store";
 import { playSfx } from "./audio";
 import { sampleInput } from "./input";
 
+/** Fire-and-forget GET to the server's /health so a sleeping free-tier host
+ * starts waking before the player finishes the lobby. Safe to call often. */
+let lastPrewake = 0;
+export function prewakeServer(): void {
+  if (typeof window === "undefined") return;
+  const ws = process.env.NEXT_PUBLIC_SERVER_URL;
+  if (!ws) return; // local dev — nothing to wake
+  const now = Date.now();
+  if (now - lastPrewake < 30_000) return;
+  lastPrewake = now;
+  const httpUrl = ws.replace(/^wss:/, "https:").replace(/^ws:/, "http:");
+  fetch(`${httpUrl}/health`, { mode: "no-cors", cache: "no-store" }).catch(
+    () => undefined,
+  );
+}
+
 /** Structural read-only views of server schema state. */
 export interface DoorView {
   face: string;
@@ -176,22 +192,45 @@ export class NetClient {
     return this.deathBursts.filter((b) => b.room === room);
   }
 
-  async connect(code: string, name: string, charId: string | null, seed?: number): Promise<void> {
+  async connect(
+    code: string,
+    name: string,
+    charId: string | null,
+    seed?: number,
+    onProgress?: (msg: string) => void,
+  ): Promise<void> {
     const url =
       process.env.NEXT_PUBLIC_SERVER_URL ??
       `ws://${typeof window !== "undefined" ? window.location.hostname : "localhost"}:2567`;
+    prewakeServer(); // free-tier hosts sleep; nudge /health right away
     const client = new Client(url);
     const store = useGame.getState();
-    try {
-      this.room = await client.joinOrCreate("match", {
-        code,
-        name,
-        ...(charId ? { charId } : {}),
-        ...(seed !== undefined ? { seed } : {}),
-      });
-    } catch (err) {
-      store.setConnected(false, String(err));
-      throw err;
+    // free-tier hosts take up to ~1 min to wake from sleep: retry the join
+    // until the deadline instead of failing on the first refused connection
+    const deadline = Date.now() + 110_000;
+    let attempt = 0;
+    for (;;) {
+      attempt += 1;
+      try {
+        this.room = await client.joinOrCreate("match", {
+          code,
+          name,
+          ...(charId ? { charId } : {}),
+          ...(seed !== undefined ? { seed } : {}),
+        });
+        break;
+      } catch (err) {
+        if (Date.now() >= deadline) {
+          store.setConnected(false, String(err));
+          throw err;
+        }
+        onProgress?.(
+          attempt === 1
+            ? "waking the server — free hosting can take up to a minute…"
+            : `waking the server… still trying (${Math.round((deadline - Date.now()) / 1000)}s left)`,
+        );
+        await new Promise((r) => setTimeout(r, 4000));
+      }
     }
     store.setConnected(true);
     store.setSession(this.room.sessionId);
