@@ -3,7 +3,11 @@
   "version": 1,
   "archetype": "puzzle",
   "displayName": "Sequence Chamber",
-  "grid": { "w": 9, "d": 9, "h": 5 },
+  "grid": {
+    "w": 9,
+    "d": 9,
+    "h": 5
+  },
   "tiles": [
     ".........",
     ".........",
@@ -15,25 +19,148 @@
     ".........",
     "........."
   ],
-  "tileLegend": { ".": "floor", "L": "lift", "P": "plate" },
+  "tileLegend": {
+    ".": "floor",
+    "L": "lift",
+    "P": "plate"
+  },
   "props": [
-    { "type": "lever", "cell": [2, 1], "id": "lever_a", "meta": { "lamp": 2 } },
-    { "type": "lever", "cell": [4, 1], "id": "lever_b", "meta": { "lamp": 1 } },
-    { "type": "lever", "cell": [6, 1], "id": "lever_c", "meta": { "lamp": 3 } },
-    { "type": "crate", "cell": [7, 3] }
+    {
+      "type": "lever",
+      "cell": [
+        2,
+        1
+      ],
+      "id": "lever_a",
+      "meta": {
+        "lamp": 2
+      }
+    },
+    {
+      "type": "lever",
+      "cell": [
+        4,
+        1
+      ],
+      "id": "lever_b",
+      "meta": {
+        "lamp": 1
+      }
+    },
+    {
+      "type": "lever",
+      "cell": [
+        6,
+        1
+      ],
+      "id": "lever_c",
+      "meta": {
+        "lamp": 3
+      }
+    },
+    {
+      "type": "crate",
+      "cell": [
+        7,
+        3
+      ]
+    },
+    {
+      "type": "lockbox",
+      "id": "lb1",
+      "cell": [
+        7,
+        5
+      ]
+    }
   ],
   "doorSlots": [
-    { "allowedGates": ["open", "key", "stat", "objective"], "cell": [4, 0] },
-    { "allowedGates": ["open", "key", "stat", "objective"], "cell": [8, 4] },
-    { "allowedGates": ["open", "key", "stat", "objective"], "cell": [4, 8] },
-    { "allowedGates": ["open", "key", "stat", "objective"], "cell": [0, 4] },
-    { "allowedGates": ["lift"], "cell": [6, 6] },
+    {
+      "allowedGates": [
+        "open",
+        "key",
+        "stat",
+        "objective"
+      ],
+      "cell": [
+        4,
+        0
+      ]
+    },
+    {
+      "allowedGates": [
+        "open",
+        "key",
+        "stat",
+        "objective"
+      ],
+      "cell": [
+        8,
+        4
+      ]
+    },
+    {
+      "allowedGates": [
+        "open",
+        "key",
+        "stat",
+        "objective"
+      ],
+      "cell": [
+        4,
+        8
+      ]
+    },
+    {
+      "allowedGates": [
+        "open",
+        "key",
+        "stat",
+        "objective"
+      ],
+      "cell": [
+        0,
+        4
+      ]
+    },
+    {
+      "allowedGates": [
+        "lift"
+      ],
+      "cell": [
+        6,
+        6
+      ]
+    },
     null
   ],
   "logicId": "levers_sequence",
-  "logicParams": { "order": ["lever_b", "lever_a", "lever_c"] },
-  "lighting": { "ambient": "#0e2a2e", "point": "#2dd4bf", "intensity": 1.4 },
-  "spawnCells": [[1, 7], [7, 7], [4, 4]],
+  "logicParams": {
+    "order": [
+      "lever_b",
+      "lever_a",
+      "lever_c"
+    ]
+  },
+  "lighting": {
+    "ambient": "#0e2a2e",
+    "point": "#2dd4bf",
+    "intensity": 1.4
+  },
+  "spawnCells": [
+    [
+      1,
+      7
+    ],
+    [
+      7,
+      7
+    ],
+    [
+      4,
+      4
+    ]
+  ],
   "weight": 1.2,
   "maxPerCube": 2,
   "minPerCube": 0

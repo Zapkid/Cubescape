@@ -1,6 +1,8 @@
 import {
   PLAYER_RADIUS,
   PLAYER_BASE_SPEED,
+  PLAYER_ACCEL,
+  PLAYER_DECEL,
   PLAYER_JUMP_VEL,
   GRAVITY,
   ROOM_W,
@@ -87,6 +89,9 @@ export interface SimPlayerState {
   y: number;
   z: number;
   vy: number;
+  /** horizontal velocity (accel-based movement); absent = at rest */
+  vx?: number;
+  vz?: number;
 }
 
 export interface InputStep {
@@ -208,11 +213,30 @@ export function stepPlayer(
   const grappling = ctx.ignorePits;
   const speed =
     PLAYER_BASE_SPEED * speedMult * slowMult * (grappling ? GRAPPLE_SPEED_MULT : 1);
-  const dx = mx * speed * dt;
-  const dz = mz * speed * dt;
+
+  // ease velocity toward the input direction: quick ramp-up, quicker stop.
+  // exponential approach never overshoots, so |v| <= speed keeps the
+  // anti-speed-hack displacement bound intact.
+  const hasInput = mag > 0.001;
+  const k = 1 - Math.exp(-(hasInput ? PLAYER_ACCEL : PLAYER_DECEL) * dt);
+  let vx = (prev.vx ?? 0) + (mx * speed - (prev.vx ?? 0)) * k;
+  let vz = (prev.vz ?? 0) + (mz * speed - (prev.vz ?? 0)) * k;
+  const vmag = Math.hypot(vx, vz);
+  if (vmag > speed) {
+    vx *= speed / vmag;
+    vz *= speed / vmag;
+  }
+  const dx = vx * dt;
+  const dz = vz * dt;
 
   const solid = (tx: number, tz: number) => isSolidCell(ctx, tx, tz);
   const moved = resolveMove(prev.x, prev.z, dx, dz, PLAYER_RADIUS, solid);
+  // velocity reflects what actually happened, so a blocked axis zeroes out
+  // instead of "charging up" against the wall
+  if (dt > 0) {
+    vx = (moved.x - prev.x) / dt;
+    vz = (moved.z - prev.z) / dt;
+  }
 
   // vertical: cosmetic hop (ground plane is y=0 everywhere; pits block horizontally)
   let vy = prev.vy;
@@ -225,7 +249,7 @@ export function stepPlayer(
     vy = 0;
   }
 
-  const state: SimPlayerState = { x: moved.x, y, z: moved.z, vy };
+  const state: SimPlayerState = { x: moved.x, y, z: moved.z, vy, vx, vz };
   const exitFace = detectDoorExit(state, mx, mz, ctx);
   return exitFace ? { state, exitFace } : { state };
 }

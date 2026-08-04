@@ -94,6 +94,87 @@ describe("dynamic props", () => {
     expect(eDoor.open).toBe(true);
   });
 
+  it("lockbox shrugs off strikes", () => {
+    const { sim, state, p } = makeSim();
+    const room = state.rooms.get("0,0,1")!;
+    const lb = room.dynProps.get("lb1")!;
+    expect(lb.kind).toBe("lockbox");
+    p.roomCoord = "0,0,1";
+    p.x = lb.x;
+    p.z = lb.z - 0.9;
+    for (let i = 0; i < 10; i++) {
+      sim.useAbility("t1", 3, 0); // strike facing +z at the box
+      for (let t = 0; t < 10; t++) sim.tick();
+    }
+    expect(room.dynProps.has("lb1")).toBe(true);
+    expect(room.dynProps.get("lb1")!.hp).toBe(lb.maxHp);
+  });
+
+  it("lockbox refuses to sink when shoved at a pit", () => {
+    const { sim, state, p } = makeSim();
+    const room = state.rooms.get("0,0,1")!;
+    const lb = room.dynProps.get("lb1")!;
+    // stand east of the box and shove it west toward the pit ring at (5,4)
+    p.roomCoord = "0,0,1";
+    p.x = lb.x + 0.75;
+    p.z = lb.z;
+    walk(sim, state, -1, 0, 300);
+    expect(room.dynProps.has("lb1")).toBe(true);
+    const after = room.dynProps.get("lb1")!;
+    // parked at the pit edge, never inside a pit cell
+    expect(Math.floor(after.x)).toBeGreaterThanOrEqual(6);
+    expect(room.walkableOverrides.length).toBe(0);
+  });
+
+  it("pick up the lockbox, set it on a plate, and it holds the door", () => {
+    const { sim, state, p } = makeSim();
+    const room = state.rooms.get("0,0,1")!;
+    p.roomCoord = "0,0,1";
+    // repurpose the W door as a 1-press plates gate (isolated from room logic,
+    // which needs 2 presses and would latch)
+    const wDoor = room.doors.find((d) => d.face === "W");
+    let gateDoor = wDoor;
+    if (!gateDoor) {
+      gateDoor = room.doors.find((d) => d.face !== "E")!;
+    }
+    gateDoor.gateType = "plates";
+    gateDoor.gateValue = 1;
+    gateDoor.open = false;
+    gateDoor.latched = false;
+
+    // 1. pick it up (closer to the box than to any door)
+    const lb = room.dynProps.get("lb1")!;
+    p.x = lb.x;
+    p.z = lb.z + 0.9;
+    sim.interact("t1");
+    expect(p.carryProp).toBe("lockbox");
+    expect(room.dynProps.has("lb1")).toBe(false);
+
+    // 2. walk to the plate at (4,3) and set it down on the tile ahead
+    p.x = 4.5;
+    p.z = 2.6;
+    p.yaw = 0; // facing +z → front cell is (4,3)
+    sim.interact("t1");
+    expect(p.carryProp).toBe("");
+    const placed = room.dynProps.get("lb1")!;
+    expect(placed.x).toBeCloseTo(4.5, 3);
+    expect(placed.z).toBeCloseTo(3.5, 3);
+
+    // 3. one press held by the box → the gate opens without anyone standing
+    p.x = 1.5;
+    p.z = 7.5;
+    walk(sim, state, 0, 0, 3);
+    expect(gateDoor.open).toBe(true);
+
+    // 4. pick the box back up → the press releases and the door seals again
+    p.x = 4.5;
+    p.z = 4.6;
+    sim.interact("t1");
+    expect(p.carryProp).toBe("lockbox");
+    walk(sim, state, 0, 0, 3);
+    expect(gateDoor.open).toBe(false);
+  });
+
   it("breaks a barrel with strikes", () => {
     const { sim, state, p } = makeSim();
     const spawnRoom = state.rooms.get("0,0,0")!;

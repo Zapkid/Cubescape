@@ -218,6 +218,49 @@ export function CrateMesh({ flashRef }: { flashRef?: RefObject<THREE.Mesh> }) {
   );
 }
 
+/** indestructible sokoban lockbox: dark alloy cube with glowing seams */
+export function LockboxMesh({ flashRef }: { flashRef?: RefObject<THREE.Mesh> }) {
+  return (
+    <>
+      <mesh ref={flashRef} position={[0, 0.33, 0]} castShadow>
+        <boxGeometry args={[0.66, 0.66, 0.66]} />
+        <meshStandardMaterial
+          color="#39415e"
+          roughness={0.35}
+          metalness={0.2}
+          emissive="#ffffff"
+          emissiveIntensity={0}
+        />
+      </mesh>
+      {/* glowing seams */}
+      {[0.1, 0.56].map((y) => (
+        <mesh key={y} position={[0, y, 0]}>
+          <boxGeometry args={[0.69, 0.045, 0.69]} />
+          <meshStandardMaterial
+            color="#0a2a30"
+            emissive="#38d6f0"
+            emissiveIntensity={1.5}
+          />
+        </mesh>
+      ))}
+      {/* corner armor */}
+      {[-0.29, 0.29].map((x) =>
+        [-0.29, 0.29].map((z) => (
+          <mesh key={`${x}${z}`} position={[x, 0.33, z]}>
+            <boxGeometry args={[0.14, 0.7, 0.14]} />
+            <meshStandardMaterial color="#262c42" roughness={0.45} metalness={0.15} />
+          </mesh>
+        )),
+      )}
+      {/* lock light */}
+      <mesh position={[0, 0.4, 0.34]}>
+        <boxGeometry args={[0.1, 0.1, 0.02]} />
+        <meshStandardMaterial color="#38d6f0" emissive="#38d6f0" emissiveIntensity={2} />
+      </mesh>
+    </>
+  );
+}
+
 /** static barrel mesh — RoomView3D wraps it with net-driven motion */
 export function BarrelMesh({ flashRef }: { flashRef?: RefObject<THREE.Mesh> }) {
   return (

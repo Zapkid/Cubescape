@@ -14,7 +14,7 @@ import {
   type TileType,
 } from "@cubescape/shared";
 import type { NetClient, RoomView } from "./net";
-import { BarrelMesh, CrateMesh } from "./CharacterModel";
+import { BarrelMesh, CrateMesh, LockboxMesh } from "./CharacterModel";
 
 const WALL_H = 2.6;
 
@@ -321,6 +321,34 @@ function Walls({ room, accent }: { room: RoomView; accent: string }) {
     return segs;
   }, [room]);
 
+  // when the camera is pushed up against a wall (player backing into it),
+  // fade that wall out instead of letting it fill the frame
+  const segRefs = useRef<(THREE.Group | null)[]>([]);
+  useFrame(({ camera }) => {
+    segments.forEach((s, i) => {
+      const grp = segRefs.current[i];
+      if (!grp) return;
+      const face = s.z < 1 ? "N" : s.z > 8 ? "S" : s.x < 1 ? "W" : "E";
+      const dist =
+        face === "N"
+          ? camera.position.z
+          : face === "S"
+            ? 9 - camera.position.z
+            : face === "W"
+              ? camera.position.x
+              : 9 - camera.position.x;
+      const target = dist < 0.95 ? 0.15 : 1;
+      grp.traverse((o) => {
+        const mesh = o as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        const m = mesh.material as THREE.MeshStandardMaterial;
+        if (!m.transparent) m.transparent = true;
+        m.opacity += (target - m.opacity) * 0.25;
+        m.depthWrite = m.opacity > 0.6;
+      });
+    });
+  });
+
   return (
     <group>
       {segments.map((s, i) => {
@@ -335,7 +363,12 @@ function Walls({ room, accent }: { room: RoomView; accent: string }) {
           return { off, lit };
         });
         return (
-          <group key={i}>
+          <group
+            key={i}
+            ref={(el) => {
+              segRefs.current[i] = el;
+            }}
+          >
             <mesh position={[s.x, WALL_H / 2, s.z]}>
               <boxGeometry args={[s.w, WALL_H, s.d]} />
               <meshStandardMaterial color="#191924" roughness={0.9} />
@@ -675,6 +708,7 @@ function Props({
             );
           case "crate":
           case "barrel":
+          case "lockbox":
             return null; // live physics objects — rendered from server state
           case "lever":
             return <Lever key={key} x={x} z={z} p={p} room={room} />;
@@ -1088,6 +1122,8 @@ function DynProps({ room, net }: { room: RoomView; net: NetClient }) {
       {items.map((it) =>
         it.kind === "barrel" ? (
           <Barrel key={it.id} id={it.id} room={room} net={net} />
+        ) : it.kind === "lockbox" ? (
+          <Lockbox key={it.id} id={it.id} room={room} net={net} />
         ) : (
           <Crate key={it.id} id={it.id} room={room} net={net} />
         ),
@@ -1142,6 +1178,17 @@ function Barrel({ id, room, net }: { id: string; room: RoomView; net: NetClient 
   return (
     <group ref={ref}>
       <BarrelMesh flashRef={flash} />
+    </group>
+  );
+}
+
+function Lockbox({ id, room, net }: { id: string; room: RoomView; net: NetClient }) {
+  const ref = useRef<THREE.Group>(null);
+  const flash = useRef<THREE.Mesh>(null);
+  useDynProp(id, room, net, ref, flash);
+  return (
+    <group ref={ref}>
+      <LockboxMesh flashRef={flash} />
     </group>
   );
 }

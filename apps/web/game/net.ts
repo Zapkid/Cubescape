@@ -2,6 +2,7 @@
 
 import { Client, Room } from "colyseus.js";
 import {
+  CARRY_SPEED_MULT,
   CHARACTERS,
   CLIENT_SIM_DT,
   DYN_PROP_DEFS,
@@ -17,6 +18,7 @@ import {
   type Face,
   type MoveContext,
   type ServerEvent,
+  type SimPlayerState,
   type TileType,
 } from "@cubescape/shared";
 import { describeEvent, useGame } from "./store";
@@ -89,7 +91,10 @@ export interface PlayerView {
   y: number;
   z: number;
   yaw: number;
+  vx: number;
+  vz: number;
   lastProcessedSeq: number;
+  carryProp: string;
   hp: number;
   maxHp: number;
   downed: boolean;
@@ -141,7 +146,7 @@ export class NetClient {
   private tileCache = new Map<string, TileType[][]>();
   private propCache = new Map<string, Set<string>>();
   /** local predicted sim state */
-  sim = { x: 4.5, y: 0, z: 4.5, vy: 0 };
+  sim: SimPlayerState = { x: 4.5, y: 0, z: 4.5, vy: 0, vx: 0, vz: 0 };
   onEvent: ((e: ServerEvent) => void) | null = null;
   /** dev/e2e: when set, overrides sampled keyboard input (blur-proof driving) */
   autoInput: { mx: number; mz: number; jump: boolean; hold: boolean } | null = null;
@@ -298,13 +303,13 @@ export class NetClient {
     // adopt server room on transition
     if (me.roomCoord !== this.lastRoomCoord) {
       this.lastRoomCoord = me.roomCoord;
-      this.sim = { x: me.x, y: me.y, z: me.z, vy: 0 };
+      this.sim = { x: me.x, y: me.y, z: me.z, vy: 0, vx: 0, vz: 0 };
       this.pending = [];
       this.accumulator = 0;
       playSfx("transition", { t: "transition" });
     }
     if (me.downed) {
-      this.sim = { x: me.x, y: 0, z: me.z, vy: 0 };
+      this.sim = { x: me.x, y: 0, z: me.z, vy: 0, vx: 0, vz: 0 };
       return;
     }
 
@@ -357,7 +362,7 @@ export class NetClient {
     const ack = me.lastProcessedSeq;
     this.pending = this.pending.filter((p) => p.seq > ack);
     // rewind to server state and replay unacked inputs
-    let sim = { x: me.x, y: me.y, z: me.z, vy: 0 };
+    let sim: SimPlayerState = { x: me.x, y: me.y, z: me.z, vy: 0, vx: me.vx, vz: me.vz };
     const ctx = this.moveContext(me);
     if (!ctx) return;
     const obstacles = this.propObstacles(me);
@@ -384,7 +389,7 @@ export class NetClient {
 
   private speedMult(me: PlayerView): number {
     const def = CHARACTERS[(me.charId || "scout") as CharId];
-    return def?.speedMult ?? 1;
+    return (def?.speedMult ?? 1) * (me.carryProp ? CARRY_SPEED_MULT : 1);
   }
 
   private propObstacles(me: PlayerView): CircleObstacle[] {

@@ -6,8 +6,8 @@ import { Billboard, Text } from "@react-three/drei";
 import * as THREE from "three";
 import { CHARACTERS, type CharId } from "@cubescape/shared";
 import type { MobView, NetClient, PlayerView } from "./net";
-import { CharacterModel } from "./CharacterModel";
-import { useGame } from "./store";
+import { BarrelMesh, CharacterModel, CrateMesh, LockboxMesh } from "./CharacterModel";
+import { camInfo, useGame } from "./store";
 
 /** Re-render list-y things only when membership changes. */
 function useRoster(net: NetClient, roomCoord: string) {
@@ -163,6 +163,7 @@ function PlayerRig({ net, sessionId }: { net: NetClient; sessionId: string }) {
   const legR = useRef<THREE.Group>(null);
   const kneeL = useRef<THREE.Group>(null);
   const kneeR = useRef<THREE.Group>(null);
+  const carryRef = useRef<THREE.Group>(null);
   const walkPhase = useRef(0);
   const smoothed = useRef<{ x: number; z: number; yaw: number } | null>(null);
   const isLocal = net.room?.sessionId === sessionId;
@@ -216,6 +217,9 @@ function PlayerRig({ net, sessionId }: { net: NetClient; sessionId: string }) {
     const idleBreath = Math.sin(p2 * 0.9) * 0.015;
 
     if (body.current) {
+      // fade the local rig out when the camera is pulled in tight (backed
+      // into a wall/corner) so the view never fills with model interior
+      body.current.visible = !isLocal || camInfo.dist > 0.95;
       body.current.position.y = pl.downed
         ? 0.22
         : moving
@@ -242,6 +246,14 @@ function PlayerRig({ net, sessionId }: { net: NetClient; sessionId: string }) {
     if (armR.current) {
       armR.current.rotation.x = attacking ? -1.7 * attackT : moving ? swing * 0.5 : 0.06;
     }
+    // carried prop hovers over the head; swap which mesh shows by kind
+    if (carryRef.current) {
+      for (const child of carryRef.current.children) {
+        child.visible = child.name === pl.carryProp;
+      }
+      carryRef.current.visible = !!pl.carryProp && !pl.downed;
+      carryRef.current.rotation.y += dt * 0.8;
+    }
     if (elbowL.current) elbowL.current.rotation.x = moving ? -0.35 - Math.max(0, swing) * 0.3 : -0.25;
     if (elbowR.current) {
       elbowR.current.rotation.x = attacking
@@ -265,24 +277,40 @@ function PlayerRig({ net, sessionId }: { net: NetClient; sessionId: string }) {
           glow={grappling}
           refs={{ torso, armL, armR, elbowL, elbowR, legL, legR, kneeL, kneeR }}
         />
+        {/* carried prop (visibility toggled per-frame by kind) */}
+        <group ref={carryRef} position={[0, 1.72, 0]} scale={0.5} visible={false}>
+          <group name="crate">
+            <CrateMesh />
+          </group>
+          <group name="barrel">
+            <BarrelMesh />
+          </group>
+          <group name="lockbox">
+            <LockboxMesh />
+          </group>
+        </group>
       </group>
-      {/* name + status */}
-      <Billboard position={[0, 2.02, 0]}>
-        <Text
-          fontSize={0.22}
-          color={p.downed ? "#f43f5e" : "#e2e8f0"}
-          anchorX="center"
-          outlineWidth={0.014}
-          outlineColor="#000000"
-        >
-          {`${p.name}${p.downed ? " ▼DOWN" : ""}`}
-        </Text>
-      </Billboard>
-      {/* hp pip bar */}
-      <HpBar getRatio={() => {
-        const pl = net.state?.players.get(sessionId);
-        return pl ? pl.hp / Math.max(1, pl.maxHp) : 0;
-      }} y={1.86} width={0.8} color={color} />
+      {/* name + hp are for OTHER players — your own live in the HUD, and at
+          point-blank camera range they'd fill the whole frame */}
+      {!isLocal ? (
+        <>
+          <Billboard position={[0, 2.02, 0]}>
+            <Text
+              fontSize={0.22}
+              color={p.downed ? "#f43f5e" : "#e2e8f0"}
+              anchorX="center"
+              outlineWidth={0.014}
+              outlineColor="#000000"
+            >
+              {`${p.name}${p.downed ? " ▼DOWN" : ""}`}
+            </Text>
+          </Billboard>
+          <HpBar getRatio={() => {
+            const pl = net.state?.players.get(sessionId);
+            return pl ? pl.hp / Math.max(1, pl.maxHp) : 0;
+          }} y={1.86} width={0.8} color={color} />
+        </>
+      ) : null}
       {/* emote bubble */}
       <EmoteBubble net={net} sessionId={sessionId} />
       {/* revive ring while downed */}

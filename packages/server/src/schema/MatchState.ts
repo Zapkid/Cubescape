@@ -10,6 +10,8 @@ export class DoorState extends Schema {
   /** plates count or stat threshold */
   @type("number") gateValue = 0;
   @type("boolean") open = false;
+  /** bypass/logic-opened doors stay open even when plates release */
+  @type("boolean") latched = false;
   @type("number") cellX = 4;
   @type("number") cellZ = 0;
   /** shared with the twin door on the other side */
@@ -91,7 +93,12 @@ export class PlayerState extends Schema {
   @type("number") y = 0;
   @type("number") z = 4.5;
   @type("number") yaw = 0;
+  /** horizontal velocity — clients seed reconciliation replay from these */
+  @type("number") vx = 0;
+  @type("number") vz = 0;
   @type("number") lastProcessedSeq = -1;
+  /** kind of the dyn prop being carried ("" = hands free) */
+  @type("string") carryProp = "";
 
   @type("number") hp = 100;
   @type("number") maxHp = 100;

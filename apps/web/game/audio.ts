@@ -132,6 +132,18 @@ export function playSfx(kind: string, e?: Record<string, unknown>): void {
       tone(110, 350, "sine", 0.4, 40);
       noise(300, 0.3, 400);
       break;
+    case "propPickup":
+      tone(320, 90, "triangle", 0.3, 420);
+      noise(60, 0.08, 900);
+      break;
+    case "propPlace":
+      tone(220, 120, "triangle", 0.32, 140);
+      noise(90, 0.1, 600);
+      break;
+    case "doorClose":
+      tone(140, 260, "square", 0.3, 70);
+      noise(200, 0.2, 500);
+      break;
     case "ping":
       tone(980, 120, "sine", 0.3);
       break;

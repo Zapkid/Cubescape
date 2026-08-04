@@ -54,6 +54,14 @@
       "rotY": 0,
       "id": "b1",
       "meta": {}
+    },
+    {
+      "type": "lockbox",
+      "id": "lb1",
+      "cell": [
+        5,
+        4
+      ]
     }
   ],
   "doorSlots": [

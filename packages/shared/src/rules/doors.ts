@@ -83,8 +83,10 @@ export function gatePassableForCaps(
     case "key":
       return ctx.keysAvailable.has(gate.color);
     case "plates":
-      // one plate can always be covered by Hold Fast; player bodies cover the rest
-      return caps.players + (caps.hasBrute ? 1 : 0) >= gate.count;
+      // plates doors auto-close when released, so the crossing player can't
+      // hold their own plate: every plate room guarantees one lockbox, and a
+      // brute can cover a second plate with a Hold Fast token
+      return 1 + (caps.hasBrute ? 1 : 0) >= gate.count;
     case "stat": {
       const have = gate.stat === "might" ? caps.might : caps.wits;
       return have >= gate.threshold;

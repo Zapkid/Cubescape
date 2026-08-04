@@ -15,9 +15,16 @@ export const TILE_SIZE = 1; // meters per tile
 
 export const PLAYER_RADIUS = 0.32;
 export const PLAYER_BASE_SPEED = 4.4; // m/s before character multiplier
+/** exponential accel/decel rates (1/s) — movement eases in and out */
+export const PLAYER_ACCEL = 13;
+export const PLAYER_DECEL = 20;
 export const PLAYER_JUMP_VEL = 5.2;
 export const GRAVITY = 16;
 export const MOB_RADIUS = 0.3;
+
+/** carrying a prop slows you down */
+export const CARRY_SPEED_MULT = 0.8;
+export const CARRY_RANGE = 1.35; // pick-up reach from prop center
 
 export const INTERACT_RANGE = 1.7; // meters from door/prop cell center
 export const STAT_DOOR_RANGE = 2.4; // players within this of door count toward stat sum
@@ -87,8 +94,10 @@ export const ARCHETYPE_LIGHTING: Record<
 
 /** dynamic environment objects: pushable, breakable, pit-fillable */
 export const DYN_PROP_DEFS = {
-  crate: { hp: 25, radius: 0.4, pushable: true },
-  barrel: { hp: 14, radius: 0.32, pushable: true },
+  crate: { hp: 25, radius: 0.4, pushable: true, carryable: true, breakable: true, sinks: true },
+  barrel: { hp: 14, radius: 0.32, pushable: true, carryable: true, breakable: true, sinks: true },
+  /** sokoban key piece: can't be destroyed and refuses to fall into pits */
+  lockbox: { hp: 9999, radius: 0.4, pushable: true, carryable: true, breakable: false, sinks: false },
 } as const;
 export type DynPropKind = keyof typeof DYN_PROP_DEFS;
 

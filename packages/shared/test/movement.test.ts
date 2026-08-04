@@ -161,6 +161,46 @@ describe("door transitions", () => {
   });
 });
 
+describe("acceleration model (natural, non-linear movement)", () => {
+  const dt = 1 / 60;
+  const step = (s: SimPlayerState, mx: number, ctx: MoveContext) =>
+    stepPlayer(s, { seq: 0, mx, mz: 0, yaw: 0, jump: false }, dt, ctx, 1).state;
+
+  it("ramps up from rest instead of snapping to full speed", () => {
+    const ctx = ctxFor("connector_basic");
+    const full = PLAYER_BASE_SPEED * dt;
+    let s: SimPlayerState = { x: 1.5, y: 0, z: 1.5, vy: 0 };
+    const first = step(s, 1, ctx);
+    expect(first.x - 1.5).toBeGreaterThan(0);
+    expect(first.x - 1.5).toBeLessThan(full * 0.5); // still accelerating
+    // reach steady state
+    for (let i = 0; i < 60; i++) s = step(s, 1, ctx);
+    const before = s.x;
+    s = step(s, 1, ctx);
+    expect(s.x - before).toBeGreaterThan(full * 0.95); // at full speed
+  });
+
+  it("glides to a stop when input releases", () => {
+    const ctx = ctxFor("connector_basic");
+    let s: SimPlayerState = { x: 1.5, y: 0, z: 1.5, vy: 0 };
+    for (let i = 0; i < 40; i++) s = step(s, 1, ctx);
+    const releasePoint = s.x;
+    s = step(s, 0, ctx);
+    expect(s.x).toBeGreaterThan(releasePoint); // carries momentum
+    for (let i = 0; i < 30; i++) s = step(s, 0, ctx);
+    const settled = s.x;
+    s = step(s, 0, ctx);
+    expect(s.x - settled).toBeLessThan(0.002); // effectively stopped in 0.5s
+  });
+
+  it("zeroes velocity into a wall instead of storing it up", () => {
+    const ctx = ctxFor("connector_basic");
+    let s: SimPlayerState = { x: 8.0, y: 0, z: 1.5, vy: 0 };
+    for (let i = 0; i < 60; i++) s = step(s, 1, ctx); // pinned against east wall
+    expect(s.vx ?? 0).toBeCloseTo(0, 5);
+  });
+});
+
 describe("collideCircleObstacles (crate physics)", () => {
   it("pushes the mover out and reports push force on the obstacle", async () => {
     const { collideCircleObstacles } = await import("../src/rules/movement.js");

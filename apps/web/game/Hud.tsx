@@ -149,15 +149,7 @@ export function Hud({ net }: { net: NetClient }) {
             >
               ▶ RESUME
             </button>
-            <button
-              onClick={() => {
-                navigator.clipboard
-                  .writeText(window.location.origin + window.location.pathname)
-                  .catch(() => undefined);
-              }}
-            >
-              COPY INVITE LINK
-            </button>
+            <CopyInviteButton />
             <button onClick={() => setDebugOpen((v) => !v)}>
               DEBUG (`)
             </button>
@@ -255,6 +247,26 @@ export function Hud({ net }: { net: NetClient }) {
 }
 
 /** the teaser's heartbeat motif: EKG trace that speeds up and reddens as HP drops */
+function CopyInviteButton() {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      style={copied ? { borderColor: "#4ade80", color: "#4ade80" } : undefined}
+      onClick={() => {
+        navigator.clipboard
+          .writeText(window.location.origin + window.location.pathname)
+          .then(() => {
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1600);
+          })
+          .catch(() => undefined);
+      }}
+    >
+      {copied ? "✓ LINK COPIED" : "COPY INVITE LINK"}
+    </button>
+  );
+}
+
 function Ekg({ ratio, downed }: { ratio: number; downed: boolean }) {
   const color = downed ? "#f43f5e" : ratio > 0.6 ? "#4ade80" : ratio > 0.3 ? "#f59e0b" : "#f43f5e";
   const duration = downed ? "3s" : ratio > 0.6 ? "1.5s" : ratio > 0.3 ? "1s" : "0.55s";

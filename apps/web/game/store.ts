@@ -94,6 +94,9 @@ export const useGame = create<GameStore>((set) => ({
   setShake: () => set({ shakeAt: Date.now() }),
 }));
 
+/** per-frame camera info, deliberately outside reactive state (60Hz writes) */
+export const camInfo = { dist: 3.4 };
+
 export function describeEvent(e: ServerEvent): string | null {
   switch (e.t) {
     case "message":
@@ -102,6 +105,8 @@ export function describeEvent(e: ServerEvent): string | null {
       return `${e.by} took the ${e.color} key`;
     case "doorOpen":
       return null; // sound only
+    case "doorClose":
+      return "The plates release — the door seals shut.";
     case "downed":
       return `${e.who} is down!`;
     case "revived":

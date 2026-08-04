@@ -240,9 +240,12 @@ function tryGenerate(
         // players may arrive from either side of a closed door, so the count
         // must be pressable from BOTH sides
         const tiles = Math.min(plateTiles(e.a), plateTiles(e.b));
+        // plates doors stay open only WHILE pressed, so the crossing player
+        // can't count themselves: presses must come from things that persist —
+        // the guaranteed lockbox (1) and a Hold Fast token (brute only)
         const maxCount = Math.min(
           2,
-          caps.players + (caps.hasBrute ? 1 : 0),
+          1 + (caps.hasBrute ? 1 : 0),
           tiles + (caps.hasBrute ? 1 : 0),
         );
         if (maxCount < 1) return { ...e, gate: { type: "open" } };

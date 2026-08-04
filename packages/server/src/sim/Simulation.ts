@@ -58,6 +58,8 @@ import {
   RoomState,
 } from "../schema/MatchState.js";
 import {
+  CARRY_RANGE,
+  CARRY_SPEED_MULT,
   DYN_PROP_DEFS,
   MOB_RADIUS,
   PLAYER_RADIUS,
@@ -79,6 +81,11 @@ export class Simulation {
   private inputQueues = new Map<string, QueuedInput[]>();
   private stepBudget = new Map<string, number>();
   private holdFlags = new Map<string, boolean>();
+  /** dyn props currently held by players (full record survives the carry) */
+  private carried = new Map<
+    string,
+    { id: string; kind: string; hp: number; maxHp: number }
+  >();
   private events: ServerEvent[] = [];
   private logicScratch = new Map<string, Record<string, unknown>>();
   private roomEvents = new Map<string, RoomEvent[]>();
@@ -122,7 +129,7 @@ export class Simulation {
       // crates/barrels become live physics objects
       const template = getTemplate(roomSpec.templateId);
       template.props.forEach((prop, pi) => {
-        if (prop.type !== "crate" && prop.type !== "barrel") return;
+        if (!(prop.type in DYN_PROP_DEFS)) return;
         const def = DYN_PROP_DEFS[prop.type as DynPropKind];
         const dp = new DynProp();
         dp.id = prop.id ?? `${prop.type}${pi}`;
@@ -171,6 +178,12 @@ export class Simulation {
     if (!room) return;
     const template = getTemplate(room.templateId);
 
+    // 0. hands full? E always means "set it down"
+    if (p.carryProp) {
+      this.placeCarried(sessionId, p, room);
+      return;
+    }
+
     // 1. key pickup
     if (room.keyColor && !room.keyTaken) {
       const pedestal = template.props.find((pr) => pr.type === "key_pedestal");
@@ -197,8 +210,17 @@ export class Simulation {
       }
     }
 
-    // 3. NESW doors
+    // 3. NESW doors — unless a carryable prop is closer to hand (lockboxes
+    // often sit right next to the gated door they hold open)
+    const nearProp = this.nearestCarryable(p, room);
     const door = this.nearestDoor(p, room, ["N", "E", "S", "W"], false);
+    if (door && nearProp) {
+      const doorD = Math.hypot(p.x - (door.cellX + 0.5), p.z - (door.cellZ + 0.5));
+      if (nearProp.d < doorD) {
+        this.pickupProp(sessionId, p, room);
+        return;
+      }
+    }
     if (door) {
       const check = canOpenGate(this.gateOf(door), this.gateCtx(p, room, door));
       if (check.ok) {
@@ -234,6 +256,145 @@ export class Simulation {
         return;
       }
     }
+
+    // 6. nothing else nearby — pick up a carryable prop
+    this.pickupProp(sessionId, p, room);
+  }
+
+  private nearestCarryable(
+    p: PlayerState,
+    room: RoomState,
+  ): { prop: DynProp; d: number } | null {
+    let best: DynProp | undefined;
+    let bestD = CARRY_RANGE;
+    room.dynProps.forEach((d) => {
+      const def = DYN_PROP_DEFS[d.kind as DynPropKind];
+      if (!def?.carryable) return;
+      const dist = Math.hypot(p.x - d.x, p.z - d.z);
+      if (dist <= bestD) {
+        bestD = dist;
+        best = d;
+      }
+    });
+    return best ? { prop: best, d: bestD } : null;
+  }
+
+  /** lift the nearest carryable dyn prop within reach */
+  private pickupProp(sessionId: string, p: PlayerState, room: RoomState): void {
+    const best = this.nearestCarryable(p, room)?.prop;
+    if (!best) return;
+    this.carried.set(sessionId, {
+      id: best.id,
+      kind: best.kind,
+      hp: best.hp,
+      maxHp: best.maxHp,
+    });
+    room.dynProps.delete(best.id);
+    p.carryProp = best.kind;
+    this.emit({ t: "propPickup", room: room.coordId, kind: best.kind, sid: sessionId });
+  }
+
+  /** set the carried prop down on the aimed tile (or your own) */
+  private placeCarried(sessionId: string, p: PlayerState, room: RoomState): void {
+    const held = this.carried.get(sessionId);
+    if (!held) {
+      p.carryProp = "";
+      return;
+    }
+    const def = DYN_PROP_DEFS[held.kind as DynPropKind];
+    const tiles = this.tilesOf(room.templateId);
+    const solids = this.solidPropsOf(room.templateId);
+    const fx = Math.sin(p.yaw);
+    const fz = Math.cos(p.yaw);
+    const candidates: [number, number][] = [
+      [Math.floor(p.x + fx * 1.1), Math.floor(p.z + fz * 1.1)],
+      [Math.floor(p.x), Math.floor(p.z)],
+    ];
+    for (const [cx, cz] of candidates) {
+      if (cx < 0 || cx >= 9 || cz < 0 || cz >= 9) continue;
+      if (solids.has(`${cx},${cz}`)) continue;
+      const key = `${cx},${cz}`;
+      const tile = tiles[cz]?.[cx];
+      const intoPit =
+        (tile === "pit" || tile === "void") && !room.walkableOverrides.includes(key);
+      if (intoPit && !def.sinks) continue; // the lockbox refuses the void
+      // occupied by another prop?
+      let blocked = false;
+      room.dynProps.forEach((other) => {
+        const otherR = DYN_PROP_DEFS[other.kind as DynPropKind].radius;
+        if (Math.hypot(cx + 0.5 - other.x, cz + 0.5 - other.z) < def.radius + otherR) {
+          blocked = true;
+        }
+      });
+      if (blocked) continue;
+
+      this.carried.delete(sessionId);
+      p.carryProp = "";
+      if (intoPit) {
+        // dropped straight into the pit: instant bridge
+        room.walkableOverrides.push(key);
+        this.emit({
+          t: "message",
+          text: `The ${held.kind} drops into the pit — a makeshift bridge!`,
+        });
+        this.emit({ t: "propSink", room: room.coordId, cell: key });
+        return;
+      }
+      const dp = new DynProp();
+      dp.id = held.id;
+      dp.kind = held.kind;
+      dp.x = cx + 0.5;
+      dp.z = cz + 0.5;
+      dp.hp = held.hp;
+      dp.maxHp = held.maxHp;
+      room.dynProps.set(dp.id, dp);
+      this.emit({ t: "propPlace", room: room.coordId, x: dp.x, z: dp.z, kind: dp.kind });
+      return;
+    }
+    this.emit({ t: "message", text: "No room to set it down here.", only: sessionId });
+  }
+
+  /** drop whatever the player is holding at their feet (transition/downed/leave) */
+  dropCarried(sessionId: string): void {
+    const p = this.state.players.get(sessionId);
+    const held = this.carried.get(sessionId);
+    if (!held) return;
+    this.carried.delete(sessionId);
+    if (p) p.carryProp = "";
+    const room = p ? this.state.rooms.get(p.roomCoord) : undefined;
+    if (!p || !room) return;
+    const tiles = this.tilesOf(room.templateId);
+    const def = DYN_PROP_DEFS[held.kind as DynPropKind];
+    // own cell, else the 4 neighbors, else force own cell
+    const cx0 = Math.floor(p.x);
+    const cz0 = Math.floor(p.z);
+    const spots: [number, number][] = [
+      [cx0, cz0],
+      [cx0 + 1, cz0],
+      [cx0 - 1, cz0],
+      [cx0, cz0 + 1],
+      [cx0, cz0 - 1],
+    ];
+    let cell: [number, number] = [cx0, cz0];
+    for (const [cx, cz] of spots) {
+      if (cx < 0 || cx >= 9 || cz < 0 || cz >= 9) continue;
+      if (this.solidPropsOf(room.templateId).has(`${cx},${cz}`)) continue;
+      const tile = tiles[cz]?.[cx];
+      const pit =
+        (tile === "pit" || tile === "void") &&
+        !room.walkableOverrides.includes(`${cx},${cz}`);
+      if (pit && !def.sinks) continue;
+      cell = [cx, cz];
+      break;
+    }
+    const dp = new DynProp();
+    dp.id = held.id;
+    dp.kind = held.kind;
+    dp.x = cell[0] + 0.5;
+    dp.z = cell[1] + 0.5;
+    dp.hp = held.hp;
+    dp.maxHp = held.maxHp;
+    room.dynProps.set(dp.id, dp);
   }
 
   useAbility(sessionId: string, slot: number, aimYaw?: number): void {
@@ -364,7 +525,8 @@ export class Simulation {
     if (!room) return;
     let budget = this.stepBudget.get(sessionId) ?? 0;
     const charDef = CHARACTERS[p.charId as CharId];
-    const speedMult = charDef?.speedMult ?? 1;
+    const speedMult =
+      (charDef?.speedMult ?? 1) * (p.carryProp ? CARRY_SPEED_MULT : 1);
 
     while (q.length > 0 && budget >= 1) {
       const step = q.shift()!;
@@ -377,7 +539,7 @@ export class Simulation {
       }
       const ctx = this.moveContext(room, p);
       const res = stepPlayer(
-        { x: p.x, y: p.y, z: p.z, vy: 0 },
+        { x: p.x, y: p.y, z: p.z, vy: 0, vx: p.vx, vz: p.vz },
         { seq: step.seq, mx: step.mx, mz: step.mz, yaw: step.yaw, jump: step.jump },
         CLIENT_SIM_DT,
         ctx,
@@ -385,6 +547,8 @@ export class Simulation {
       );
       p.x = res.state.x;
       p.z = res.state.z;
+      p.vx = res.state.vx ?? 0;
+      p.vz = res.state.vz ?? 0;
       this.resolvePropPhysics(room, p);
       p.lastProcessedSeq = step.seq;
       if (res.exitFace) {
@@ -429,6 +593,16 @@ export class Simulation {
       return false;
     };
 
+    // non-sinking props (lockbox) treat pits as solid walls
+    const solidWithPits = (tx: number, tz: number): boolean => {
+      if (solidNoPit(tx, tz)) return true;
+      const tile = tiles[tz]?.[tx];
+      return (
+        (tile === "pit" || tile === "void") &&
+        !room.walkableOverrides.includes(`${tx},${tz}`)
+      );
+    };
+
     for (const push of resolved.pushes) {
       const prop = room.dynProps.get(push.id);
       if (!prop) continue;
@@ -440,7 +614,7 @@ export class Simulation {
         push.dx * 0.9,
         push.dz * 0.9,
         def.radius,
-        solidNoPit,
+        def.sinks ? solidNoPit : solidWithPits,
       );
       // blocked by another prop? then stay put
       let overlapsOther = false;
@@ -493,13 +667,17 @@ export class Simulation {
     );
     room.liftPowered = standing > 0 || fieldkitActive;
 
-    // auto-open plates-gated doors
+    // plates-gated doors are held, not latched: they open while enough
+    // presses exist and close again when the plates release
     for (const door of room.doors) {
-      if (door.gateType === "plates" && !door.open) {
-        if (standing >= door.gateValue) {
-          this.openDoorBothSides(room, door);
-          this.emit({ t: "doorOpen", room: room.coordId, face: door.face });
-        }
+      if (door.gateType !== "plates" || door.latched) continue;
+      const shouldOpen = standing >= door.gateValue;
+      if (shouldOpen && !door.open) {
+        this.openDoorBothSides(room, door);
+        this.emit({ t: "doorOpen", room: room.coordId, face: door.face });
+      } else if (!shouldOpen && door.open) {
+        this.closeDoorBothSides(room, door);
+        this.emit({ t: "doorClose", room: room.coordId, face: door.face });
       }
     }
 
@@ -715,7 +893,8 @@ export class Simulation {
         case "openDoorFace": {
           const door = room.doors.find((d) => d.face === e.face);
           if (door && !door.open) {
-            this.openDoorBothSides(room, door);
+            // bypass/room-logic openings are permanent — they beat auto-close
+            this.openDoorBothSides(room, door, true);
             this.emit({ t: "doorOpen", room: room.coordId, face: e.face });
           }
           break;
@@ -800,6 +979,12 @@ export class Simulation {
   private damageProp(room: RoomState, propId: string, amount: number): void {
     const prop = room.dynProps.get(propId);
     if (!prop) return;
+    const def = DYN_PROP_DEFS[prop.kind as DynPropKind];
+    if (!def.breakable) {
+      // clank: hit feedback, zero damage
+      this.emit({ t: "hit", mobId: `prop:${propId}`, room: room.coordId, amount: 0 });
+      return;
+    }
     prop.hp -= amount;
     this.emit({ t: "hit", mobId: `prop:${propId}`, room: room.coordId, amount });
     if (prop.hp <= 0) {
@@ -823,6 +1008,7 @@ export class Simulation {
       p.downed = true;
       p.reviveProgress = 0;
       p.downedUntil = this.state.tick + DOWNED_DURATION * TICK_RATE;
+      if (p.carryProp) this.dropCarried(sessionId);
       this.emit({ t: "downed", who: p.name, room: p.roomCoord });
     }
   }
@@ -833,6 +1019,8 @@ export class Simulation {
     const targetCoord = coordId(neighborCoord(parseCoordId(p.roomCoord), face));
     const target = this.state.rooms.get(targetCoord);
     if (!target) return;
+    // you can't haul a crate through a doorway — it stays behind
+    if (p.carryProp) this.dropCarried(p.sessionId);
     const arrivalFace = OPPOSITE_FACE[face];
     const arrivalDoor = target.doors.find((d) => d.face === arrivalFace);
     const template = getTemplate(target.templateId);
@@ -896,10 +1084,20 @@ export class Simulation {
     if (any) room.mobsSpawned = true;
   }
 
-  private openDoorBothSides(room: RoomState, door: DoorState): void {
+  private openDoorBothSides(room: RoomState, door: DoorState, latch = false): void {
     door.open = true;
+    if (latch) door.latched = true;
     const other = this.twinDoor(room, door);
-    if (other) other.open = true;
+    if (other) {
+      other.open = true;
+      if (latch) other.latched = true;
+    }
+  }
+
+  private closeDoorBothSides(room: RoomState, door: DoorState): void {
+    door.open = false;
+    const other = this.twinDoor(room, door);
+    if (other) other.open = false;
   }
 
   private twinDoor(room: RoomState, door: DoorState): DoorState | null {

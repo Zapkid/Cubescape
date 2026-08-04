@@ -4,12 +4,18 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Bloom, EffectComposer, Noise, Vignette } from "@react-three/postprocessing";
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
-import { getTemplate, INTERACT_RANGE } from "@cubescape/shared";
+import {
+  CARRY_RANGE,
+  DYN_PROP_DEFS,
+  getTemplate,
+  INTERACT_RANGE,
+  type DynPropKind,
+} from "@cubescape/shared";
 import type { NetClient } from "./net";
 import { RoomView3D } from "./RoomView3D";
 import { Actors, Pings } from "./Actors";
 import { attachInput, sampleInput } from "./input";
-import { useGame } from "./store";
+import { camInfo, useGame } from "./store";
 import { playSfx } from "./audio";
 
 export function GameCanvas({ net }: { net: NetClient }) {
@@ -110,6 +116,12 @@ function GameScene({ net }: { net: NetClient }) {
 
   // main loop: input → prediction → intents → camera
   const stepSfxAt = useRef(0);
+  const camState = useRef<{
+    pos: THREE.Vector3;
+    target: THREE.Vector3;
+    boom: number;
+    room: string;
+  } | null>(null);
   useFrame(({ camera, clock }, dt) => {
     const s = net.state;
     if (!s) return;
@@ -147,19 +159,64 @@ function GameScene({ net }: { net: NetClient }) {
       updateInteractHint(net);
     }
 
-    // third-person camera rig — stays INSIDE the room shell (walls/ceiling occlude)
-    const target = new THREE.Vector3(g.px, 1.3, g.pz);
-    const back = 3.4;
+    // ---- third-person camera rig ----
+    // damped spring follow + grid raymarch so the boom never buries the view
+    // inside a wall, corner, or column; snaps clean on room transitions.
+    const desiredTarget = new THREE.Vector3(g.px, 1.3, g.pz);
+    const MAX_BOOM = 3.4;
     const dir = new THREE.Vector3(
       -Math.sin(g.yaw) * Math.cos(g.pitch),
       -Math.sin(g.pitch),
       -Math.cos(g.yaw) * Math.cos(g.pitch),
     );
-    const desired = target.clone().addScaledVector(dir, back);
+
+    // shorten the boom against walls/columns: march the shared grid from the
+    // player's head toward the desired camera spot (pits don't block a camera)
+    const ctx = net.moveContext(me);
+    let boomLimit = MAX_BOOM;
+    if (ctx) {
+      const solidForCam = (tx: number, tz: number) =>
+        tx < 0 || tx >= 9 || tz < 0 || tz >= 9 || ctx.solidProps.has(`${tx},${tz}`);
+      for (let t = 0.4; t <= MAX_BOOM; t += 0.12) {
+        const sx = desiredTarget.x + dir.x * t;
+        const sz = desiredTarget.z + dir.z * t;
+        // pad toward the sample direction so the near plane clears the surface
+        if (
+          solidForCam(Math.floor(sx), Math.floor(sz)) ||
+          solidForCam(Math.floor(sx + dir.x * 0.22), Math.floor(sz + dir.z * 0.22))
+        ) {
+          boomLimit = Math.max(0.55, t - 0.28);
+          break;
+        }
+      }
+    }
+
+    const cs =
+      camState.current ??
+      (camState.current = {
+        pos: desiredTarget.clone().addScaledVector(dir, boomLimit),
+        target: desiredTarget.clone(),
+        boom: boomLimit,
+        room: me.roomCoord,
+      });
+    if (cs.room !== me.roomCoord) {
+      // hard snap on room transition — never sweep through the wall
+      cs.room = me.roomCoord;
+      cs.target.copy(desiredTarget);
+      cs.boom = boomLimit;
+      cs.pos.copy(desiredTarget).addScaledVector(dir, boomLimit);
+    }
+
+    // boom pulls IN fast (avoid clipping) and eases back OUT slowly
+    const boomK = 1 - Math.exp(-dt * (boomLimit < cs.boom ? 30 : 5));
+    cs.boom += (boomLimit - cs.boom) * boomK;
+    cs.target.lerp(desiredTarget, 1 - Math.exp(-dt * 22));
+    const desired = cs.target.clone().addScaledVector(dir, cs.boom);
     desired.y = Math.min(2.25, Math.max(0.5, desired.y + 0.6));
     desired.x = Math.min(8.55, Math.max(0.45, desired.x));
     desired.z = Math.min(8.55, Math.max(0.45, desired.z));
-    camera.position.lerp(desired, Math.min(1, dt * 14));
+    cs.pos.lerp(desired, 1 - Math.exp(-dt * 13));
+    camera.position.copy(cs.pos);
     // impact shake, decaying over 300ms
     const shakeAge = Date.now() - g.shakeAt;
     if (shakeAge < 300) {
@@ -168,7 +225,9 @@ function GameScene({ net }: { net: NetClient }) {
       camera.position.y += (Math.random() - 0.5) * k;
       camera.position.z += (Math.random() - 0.5) * k;
     }
-    camera.lookAt(target);
+    camera.lookAt(cs.target);
+    // expose camera-to-player distance so the local rig can fade out
+    camInfo.dist = cs.pos.distanceTo(desiredTarget);
   });
 
   const s = net.state;
@@ -196,6 +255,21 @@ function updateInteractHint(net: NetClient): void {
   let hint = "";
   const near = (x: number, z: number, r = INTERACT_RANGE) =>
     Math.hypot(g.px - x, g.pz - z) <= r;
+
+  // hands full: E always sets the load down
+  if (me.carryProp) {
+    const fx = Math.sin(g.yaw);
+    const fz = Math.cos(g.yaw);
+    const cx = Math.floor(g.px + fx * 1.1);
+    const cz = Math.floor(g.pz + fz * 1.1);
+    const tiles = net.moveContext(me)?.tiles;
+    const onPlate = tiles?.[cz]?.[cx] === "plate";
+    hint = onPlate
+      ? `E — set the ${me.carryProp} on the plate`
+      : `E — set down the ${me.carryProp}`;
+    if (g.interactHint !== hint) g.setInteractHint(hint);
+    return;
+  }
 
   // downed teammate?
   s.players.forEach((p, id) => {
@@ -230,8 +304,21 @@ function updateInteractHint(net: NetClient): void {
       }
     }
   }
+  // nearest carryable prop (E acts on the closest thing: prop vs door)
+  let propHint = "";
+  let propD = Infinity;
+  room.dynProps.forEach((d) => {
+    if (!DYN_PROP_DEFS[d.kind as DynPropKind]?.carryable) return;
+    const dist = Math.hypot(g.px - d.x, g.pz - d.z);
+    if (dist <= CARRY_RANGE && dist < propD) {
+      propD = dist;
+      propHint = `E — pick up the ${d.kind}`;
+    }
+  });
   if (!hint) {
     for (const d of room.doors) {
+      const doorD = Math.hypot(g.px - (d.cellX + 0.5), g.pz - (d.cellZ + 0.5));
+      if (propHint && propD < doorD) continue;
       if (d.face === "U") {
         if (near(d.cellX + 0.5, d.cellZ + 0.5))
           hint = room.liftPowered ? "E — ride lift up" : "lift unpowered (plate / kit / grapple)";
@@ -261,5 +348,7 @@ function updateInteractHint(net: NetClient): void {
       if (hint) break;
     }
   }
+  // lowest priority: pick up a crate/barrel/lockbox
+  if (!hint) hint = propHint;
   if (g.interactHint !== hint) g.setInteractHint(hint);
 }

@@ -146,6 +146,7 @@ export class MatchRoom extends Room<MatchState> {
     if (!p) return;
     p.connected = false;
     if (this.state.phase === "lobby" || consented) {
+      this.sim.dropCarried(client.sessionId);
       this.state.players.delete(client.sessionId);
       this.maybeStart();
       return;
@@ -155,6 +156,7 @@ export class MatchRoom extends Room<MatchState> {
       const back = this.state.players.get(client.sessionId);
       if (back) back.connected = true;
     } catch {
+      this.sim.dropCarried(client.sessionId);
       this.state.players.delete(client.sessionId);
     }
   }
