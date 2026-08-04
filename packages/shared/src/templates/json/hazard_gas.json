@@ -3,7 +3,11 @@
   "version": 1,
   "archetype": "hazard",
   "displayName": "Choke Chamber",
-  "grid": { "w": 9, "d": 9, "h": 5 },
+  "grid": {
+    "w": 9,
+    "d": 9,
+    "h": 5
+  },
   "tiles": [
     ".........",
     ".........",
@@ -15,17 +19,101 @@
     ".........",
     "........."
   ],
-  "tileLegend": { ".": "floor", "G": "gas_vent", "L": "lift", "P": "plate" },
+  "tileLegend": {
+    ".": "floor",
+    "G": "gas_vent",
+    "L": "lift",
+    "P": "plate"
+  },
   "props": [
-    { "type": "vent_terminal", "cell": [4, 4], "id": "vent_main" },
-    { "type": "wire_trace", "cell": [4, 5], "id": "wire_v", "meta": { "visibleTo": "tinker" } }
+    {
+      "type": "vent_terminal",
+      "cell": [
+        4,
+        4
+      ],
+      "id": "vent_main"
+    },
+    {
+      "type": "wire_trace",
+      "cell": [
+        4,
+        5
+      ],
+      "id": "wire_v",
+      "meta": {
+        "visibleTo": "tinker"
+      }
+    },
+    {
+      "type": "barrel",
+      "cell": [
+        7,
+        2
+      ],
+      "rotY": 0,
+      "id": "b1",
+      "meta": {}
+    }
   ],
   "doorSlots": [
-    { "allowedGates": ["open", "key", "stat", "objective"], "cell": [4, 0] },
-    { "allowedGates": ["open", "key", "stat", "objective"], "cell": [8, 4] },
-    { "allowedGates": ["open", "key", "stat", "objective"], "cell": [4, 8] },
-    { "allowedGates": ["open", "key", "stat", "objective"], "cell": [0, 4] },
-    { "allowedGates": ["lift"], "cell": [4, 6] },
+    {
+      "allowedGates": [
+        "open",
+        "key",
+        "stat",
+        "objective"
+      ],
+      "cell": [
+        4,
+        0
+      ]
+    },
+    {
+      "allowedGates": [
+        "open",
+        "key",
+        "stat",
+        "objective"
+      ],
+      "cell": [
+        8,
+        4
+      ]
+    },
+    {
+      "allowedGates": [
+        "open",
+        "key",
+        "stat",
+        "objective"
+      ],
+      "cell": [
+        4,
+        8
+      ]
+    },
+    {
+      "allowedGates": [
+        "open",
+        "key",
+        "stat",
+        "objective"
+      ],
+      "cell": [
+        0,
+        4
+      ]
+    },
+    {
+      "allowedGates": [
+        "lift"
+      ],
+      "cell": [
+        4,
+        6
+      ]
+    },
     null
   ],
   "logicId": "gas_room",
@@ -35,8 +123,25 @@
     "channelSeconds": 3,
     "instantWits": 7
   },
-  "lighting": { "ambient": "#2e0e12", "point": "#f43f5e", "intensity": 1.3 },
-  "spawnCells": [[1, 1], [7, 7], [1, 7]],
+  "lighting": {
+    "ambient": "#2e0e12",
+    "point": "#f43f5e",
+    "intensity": 1.3
+  },
+  "spawnCells": [
+    [
+      1,
+      1
+    ],
+    [
+      7,
+      7
+    ],
+    [
+      1,
+      7
+    ]
+  ],
   "weight": 1.0,
   "maxPerCube": 2,
   "minPerCube": 0

@@ -3,7 +3,11 @@
   "version": 1,
   "archetype": "connector",
   "displayName": "Junction",
-  "grid": { "w": 9, "d": 9, "h": 5 },
+  "grid": {
+    "w": 9,
+    "d": 9,
+    "h": 5
+  },
   "tiles": [
     ".........",
     ".........",
@@ -15,23 +19,140 @@
     ".........",
     "........."
   ],
-  "tileLegend": { ".": "floor", "P": "plate", "L": "lift", "C": "cracked" },
+  "tileLegend": {
+    ".": "floor",
+    "P": "plate",
+    "L": "lift",
+    "C": "cracked"
+  },
   "props": [
-    { "type": "crate", "cell": [1, 2] },
-    { "type": "crate", "cell": [7, 5], "rotY": 0.5 }
+    {
+      "type": "crate",
+      "cell": [
+        1,
+        2
+      ]
+    },
+    {
+      "type": "crate",
+      "cell": [
+        7,
+        5
+      ],
+      "rotY": 0.5
+    },
+    {
+      "type": "barrel",
+      "cell": [
+        7,
+        2
+      ],
+      "rotY": 0,
+      "id": "b1",
+      "meta": {}
+    }
   ],
   "doorSlots": [
-    { "allowedGates": ["open", "key", "stat", "plates", "objective"], "cell": [4, 0] },
-    { "allowedGates": ["open", "key", "stat", "plates", "objective"], "cell": [8, 4] },
-    { "allowedGates": ["open", "key", "stat", "plates", "objective"], "cell": [4, 8] },
-    { "allowedGates": ["open", "key", "stat", "plates", "objective"], "cell": [0, 4] },
-    { "allowedGates": ["lift"], "cell": [4, 4] },
-    { "allowedGates": ["open"], "cell": [6, 2] }
+    {
+      "allowedGates": [
+        "open",
+        "key",
+        "stat",
+        "plates",
+        "objective"
+      ],
+      "cell": [
+        4,
+        0
+      ]
+    },
+    {
+      "allowedGates": [
+        "open",
+        "key",
+        "stat",
+        "plates",
+        "objective"
+      ],
+      "cell": [
+        8,
+        4
+      ]
+    },
+    {
+      "allowedGates": [
+        "open",
+        "key",
+        "stat",
+        "plates",
+        "objective"
+      ],
+      "cell": [
+        4,
+        8
+      ]
+    },
+    {
+      "allowedGates": [
+        "open",
+        "key",
+        "stat",
+        "plates",
+        "objective"
+      ],
+      "cell": [
+        0,
+        4
+      ]
+    },
+    {
+      "allowedGates": [
+        "lift"
+      ],
+      "cell": [
+        4,
+        4
+      ]
+    },
+    {
+      "allowedGates": [
+        "open"
+      ],
+      "cell": [
+        6,
+        2
+      ]
+    }
   ],
   "logicId": null,
   "logicParams": {},
-  "lighting": { "ambient": "#1a1a2e", "point": "#8888aa", "intensity": 1.2 },
-  "spawnCells": [[1, 1], [7, 1], [1, 7], [7, 7], [4, 1]],
+  "lighting": {
+    "ambient": "#1a1a2e",
+    "point": "#8888aa",
+    "intensity": 1.2
+  },
+  "spawnCells": [
+    [
+      1,
+      1
+    ],
+    [
+      7,
+      1
+    ],
+    [
+      1,
+      7
+    ],
+    [
+      7,
+      7
+    ],
+    [
+      4,
+      1
+    ]
+  ],
   "weight": 2.5,
   "maxPerCube": 27,
   "minPerCube": 0

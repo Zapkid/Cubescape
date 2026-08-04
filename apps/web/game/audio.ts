@@ -124,6 +124,14 @@ export function playSfx(kind: string, e?: Record<string, unknown>): void {
       noise(500, 0.5, 300);
       tone(60, 500, "square", 0.4, 30);
       break;
+    case "propBreak":
+      noise(280, 0.45, 1400);
+      tone(180, 160, "square", 0.3, 90);
+      break;
+    case "propSink":
+      tone(110, 350, "sine", 0.4, 40);
+      noise(300, 0.3, 400);
+      break;
     case "ping":
       tone(980, 120, "sine", 0.3);
       break;

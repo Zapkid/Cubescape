@@ -10,16 +10,64 @@ import {
 import type { Face } from "../types.js";
 import type { TileType } from "../templates/schema.js";
 
-/** Solid props (block movement). Everything else is decoration/interactable pass-through. */
+/** Static solid props (block movement). Crates/barrels are dynamic circles now. */
 export const SOLID_PROP_TYPES: ReadonlySet<string> = new Set([
   "pillar",
-  "crate",
   "key_pedestal",
   "vent_terminal",
   "exit_terminal",
   "beacon",
   "lever",
 ]);
+
+export interface CircleObstacle {
+  id: string;
+  x: number;
+  z: number;
+  radius: number;
+}
+
+/**
+ * Push a circle (player/prop) out of overlapping circle obstacles.
+ * Pure & shared: client prediction and server authority resolve identically.
+ * Returns the resolved position plus per-obstacle push vectors (how hard the
+ * mover pressed into each) so the server can shove crates around.
+ */
+export function collideCircleObstacles(
+  x: number,
+  z: number,
+  radius: number,
+  obstacles: readonly CircleObstacle[],
+): {
+  x: number;
+  z: number;
+  pushes: { id: string; dx: number; dz: number }[];
+} {
+  let px = x;
+  let pz = z;
+  const pushes: { id: string; dx: number; dz: number }[] = [];
+  for (const o of obstacles) {
+    const dx = px - o.x;
+    const dz = pz - o.z;
+    const dist = Math.hypot(dx, dz);
+    const minDist = radius + o.radius;
+    if (dist >= minDist) continue;
+    if (dist < 0.0001) {
+      // dead-center overlap: eject deterministically along +x
+      px = o.x + minDist;
+      pushes.push({ id: o.id, dx: -minDist, dz: 0 });
+      continue;
+    }
+    const overlap = minDist - dist;
+    const nx = dx / dist;
+    const nz = dz / dist;
+    // mover keeps most of the overlap; the rest is available as push force
+    px = o.x + nx * minDist;
+    pz = o.z + nz * minDist;
+    pushes.push({ id: o.id, dx: -nx * overlap, dz: -nz * overlap });
+  }
+  return { x: px, z: pz, pushes };
+}
 
 export interface MoveContext {
   /** [z][x] tile grid */

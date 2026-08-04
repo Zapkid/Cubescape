@@ -3,7 +3,11 @@
   "version": 1,
   "archetype": "vault",
   "displayName": "Moat Vault",
-  "grid": { "w": 9, "d": 9, "h": 5 },
+  "grid": {
+    "w": 9,
+    "d": 9,
+    "h": 5
+  },
   "tiles": [
     ".........",
     "....P....",
@@ -15,23 +19,135 @@
     ".........",
     "........."
   ],
-  "tileLegend": { ".": "floor", "X": "pit", "P": "plate" },
+  "tileLegend": {
+    ".": "floor",
+    "X": "pit",
+    "P": "plate"
+  },
   "props": [
-    { "type": "key_pedestal", "cell": [4, 4], "id": "pedestal" },
-    { "type": "wire_trace", "cell": [4, 2], "id": "wire_b", "meta": { "visibleTo": "tinker" } }
+    {
+      "type": "key_pedestal",
+      "cell": [
+        4,
+        4
+      ],
+      "id": "pedestal"
+    },
+    {
+      "type": "wire_trace",
+      "cell": [
+        4,
+        2
+      ],
+      "id": "wire_b",
+      "meta": {
+        "visibleTo": "tinker"
+      }
+    },
+    {
+      "type": "crate",
+      "cell": [
+        1,
+        3
+      ],
+      "rotY": 0,
+      "id": "c1",
+      "meta": {}
+    },
+    {
+      "type": "barrel",
+      "cell": [
+        6,
+        2
+      ],
+      "rotY": 0,
+      "id": "b1",
+      "meta": {}
+    }
   ],
   "doorSlots": [
-    { "allowedGates": ["open", "key", "stat"], "cell": [4, 0] },
-    { "allowedGates": ["open", "key", "stat"], "cell": [8, 4] },
-    { "allowedGates": ["open", "key", "stat"], "cell": [4, 8] },
-    { "allowedGates": ["open", "key", "stat"], "cell": [0, 4] },
+    {
+      "allowedGates": [
+        "open",
+        "key",
+        "stat"
+      ],
+      "cell": [
+        4,
+        0
+      ]
+    },
+    {
+      "allowedGates": [
+        "open",
+        "key",
+        "stat"
+      ],
+      "cell": [
+        8,
+        4
+      ]
+    },
+    {
+      "allowedGates": [
+        "open",
+        "key",
+        "stat"
+      ],
+      "cell": [
+        4,
+        8
+      ]
+    },
+    {
+      "allowedGates": [
+        "open",
+        "key",
+        "stat"
+      ],
+      "cell": [
+        0,
+        4
+      ]
+    },
     null,
     null
   ],
   "logicId": "vault_bridge",
-  "logicParams": { "bridgeCells": [[4, 3]], "plateCells": [[4, 1]], "latching": true },
-  "lighting": { "ambient": "#160e2e", "point": "#a78bfa", "intensity": 1.5 },
-  "spawnCells": [[1, 1], [7, 7], [1, 7]],
+  "logicParams": {
+    "bridgeCells": [
+      [
+        4,
+        3
+      ]
+    ],
+    "plateCells": [
+      [
+        4,
+        1
+      ]
+    ],
+    "latching": true
+  },
+  "lighting": {
+    "ambient": "#160e2e",
+    "point": "#a78bfa",
+    "intensity": 1.5
+  },
+  "spawnCells": [
+    [
+      1,
+      1
+    ],
+    [
+      7,
+      7
+    ],
+    [
+      1,
+      7
+    ]
+  ],
   "weight": 1.2,
   "maxPerCube": 2,
   "minPerCube": 1

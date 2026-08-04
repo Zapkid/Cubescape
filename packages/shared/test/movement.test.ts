@@ -161,6 +161,37 @@ describe("door transitions", () => {
   });
 });
 
+describe("collideCircleObstacles (crate physics)", () => {
+  it("pushes the mover out and reports push force on the obstacle", async () => {
+    const { collideCircleObstacles } = await import("../src/rules/movement.js");
+    const r = collideCircleObstacles(4.3, 4.5, 0.32, [
+      { id: "c1", x: 4.8, z: 4.5, radius: 0.4 },
+    ]);
+    // mover ejected to exactly touching distance
+    expect(Math.hypot(r.x - 4.8, r.z - 4.5)).toBeCloseTo(0.72, 5);
+    expect(r.pushes).toHaveLength(1);
+    expect(r.pushes[0]!.id).toBe("c1");
+    expect(r.pushes[0]!.dx).toBeGreaterThan(0); // crate shoved away (+x)
+  });
+
+  it("no contact, no push", async () => {
+    const { collideCircleObstacles } = await import("../src/rules/movement.js");
+    const r = collideCircleObstacles(2, 2, 0.32, [
+      { id: "c1", x: 6, z: 6, radius: 0.4 },
+    ]);
+    expect(r.x).toBe(2);
+    expect(r.pushes).toHaveLength(0);
+  });
+
+  it("dead-center overlap ejects deterministically", async () => {
+    const { collideCircleObstacles } = await import("../src/rules/movement.js");
+    const r = collideCircleObstacles(5, 5, 0.32, [
+      { id: "c1", x: 5, z: 5, radius: 0.4 },
+    ]);
+    expect(r.x).toBeCloseTo(5.72, 5);
+  });
+});
+
 describe("doorSlotToSpawnPosition", () => {
   const cases: [Face, readonly [number, number]][] = [
     ["N", [4, 0]],

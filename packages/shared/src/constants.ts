@@ -85,6 +85,13 @@ export const ARCHETYPE_LIGHTING: Record<
   exit: { ambient: "#0e2e16", point: "#4ade80", mood: "green — goal" },
 };
 
+/** dynamic environment objects: pushable, breakable, pit-fillable */
+export const DYN_PROP_DEFS = {
+  crate: { hp: 25, radius: 0.4, pushable: true },
+  barrel: { hp: 14, radius: 0.32, pushable: true },
+} as const;
+export type DynPropKind = keyof typeof DYN_PROP_DEFS;
+
 export const MOB_DEFS = {
   slime: { hp: 25, speed: 2.0, damage: 6, attackRange: 0.9, attackCooldown: 1.8, windup: 0.5, exp: 15 },
   turret: { hp: 50, speed: 0, damage: 7, attackRange: 6.5, attackCooldown: 2.2, windup: 0.8, exp: 15 },

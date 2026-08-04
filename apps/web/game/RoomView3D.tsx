@@ -14,6 +14,7 @@ import {
   type TileType,
 } from "@cubescape/shared";
 import type { NetClient, RoomView } from "./net";
+import { BarrelMesh, CrateMesh } from "./CharacterModel";
 
 const WALL_H = 2.6;
 
@@ -108,6 +109,8 @@ export function RoomView3D({
       <CeilingCircuits room={room} accent={lighting.point} />
       <Doors room={room} myCharId={myCharId} />
       <Props template={template} room={room} myCharId={myCharId} net={net} />
+      <DynProps room={room} net={net} />
+      <Dressing room={room} accent={lighting.point} />
       <Spikes template={template} tiles={tiles} room={room} net={net} />
       <Deployables room={room} net={net} />
     </group>
@@ -651,18 +654,28 @@ function Props({
         switch (p.type) {
           case "pillar":
             return (
-              <mesh key={key} position={[x, 1.2, z]}>
-                <cylinderGeometry args={[0.32, 0.4, 2.4, 8]} />
-                <meshStandardMaterial color="#262636" />
-              </mesh>
+              <group key={key} position={[x, 0, z]}>
+                <mesh position={[0, 0.14, 0]}>
+                  <cylinderGeometry args={[0.44, 0.5, 0.28, 8]} />
+                  <meshStandardMaterial color="#20202e" roughness={0.85} />
+                </mesh>
+                <mesh position={[0, 1.25, 0]}>
+                  <cylinderGeometry args={[0.3, 0.36, 2, 8]} />
+                  <meshStandardMaterial color="#262636" roughness={0.8} />
+                </mesh>
+                <mesh position={[0, 1.25, 0]}>
+                  <cylinderGeometry args={[0.33, 0.33, 0.1, 8]} />
+                  <meshStandardMaterial color="#1a1a26" />
+                </mesh>
+                <mesh position={[0, 2.38, 0]}>
+                  <cylinderGeometry args={[0.42, 0.32, 0.26, 8]} />
+                  <meshStandardMaterial color="#20202e" roughness={0.85} />
+                </mesh>
+              </group>
             );
           case "crate":
-            return (
-              <mesh key={key} position={[x, 0.35, z]} rotation={[0, p.rotY, 0]}>
-                <boxGeometry args={[0.7, 0.7, 0.7]} />
-                <meshStandardMaterial color="#3d3226" />
-              </mesh>
-            );
+          case "barrel":
+            return null; // live physics objects — rendered from server state
           case "lever":
             return <Lever key={key} x={x} z={z} p={p} room={room} />;
           case "key_pedestal":
@@ -1050,6 +1063,150 @@ function Spikes({
       </group>
     </group>
   );
+}
+
+/** live crates & barrels: pushable, breakable, synced from the server */
+function DynProps({ room, net }: { room: RoomView; net: NetClient }) {
+  const [, force] = useState(0);
+  const lastKey = useRef("");
+  useFrame(() => {
+    const live = net.state?.rooms.get(room.coordId);
+    if (!live) return;
+    const ids: string[] = [];
+    live.dynProps.forEach((_, id) => ids.push(id));
+    const key = ids.sort().join(",");
+    if (key !== lastKey.current) {
+      lastKey.current = key;
+      force((v) => v + 1);
+    }
+  });
+  const live = net.state?.rooms.get(room.coordId) ?? room;
+  const items: { id: string; kind: string }[] = [];
+  live.dynProps.forEach((d, id) => items.push({ id, kind: d.kind }));
+  return (
+    <group>
+      {items.map((it) =>
+        it.kind === "barrel" ? (
+          <Barrel key={it.id} id={it.id} room={room} net={net} />
+        ) : (
+          <Crate key={it.id} id={it.id} room={room} net={net} />
+        ),
+      )}
+    </group>
+  );
+}
+
+function useDynProp(
+  id: string,
+  room: RoomView,
+  net: NetClient,
+  ref: React.RefObject<THREE.Group | null>,
+  flashRef: React.RefObject<THREE.Mesh | null>,
+) {
+  const smoothed = useRef<{ x: number; z: number } | null>(null);
+  useFrame((_, dt) => {
+    const d = net.state?.rooms.get(room.coordId)?.dynProps.get(id);
+    if (!d || !ref.current) return;
+    if (!smoothed.current) smoothed.current = { x: d.x, z: d.z };
+    const sm = smoothed.current;
+    const k = Math.min(1, dt * 14);
+    sm.x += (d.x - sm.x) * k;
+    sm.z += (d.z - sm.z) * k;
+    ref.current.position.set(sm.x, 0, sm.z);
+    // wobble while sliding
+    const sliding = Math.hypot(d.x - sm.x, d.z - sm.z) > 0.01;
+    ref.current.rotation.y += (sliding ? dt * 1.4 : 0);
+    if (flashRef.current) {
+      const hitAge = Date.now() - (net.hitFlashes.get(`prop:${id}`) ?? 0);
+      const mat = flashRef.current.material as THREE.MeshStandardMaterial;
+      mat.emissiveIntensity = hitAge < 130 ? 1.6 : 0;
+    }
+  });
+}
+
+function Crate({ id, room, net }: { id: string; room: RoomView; net: NetClient }) {
+  const ref = useRef<THREE.Group>(null);
+  const flash = useRef<THREE.Mesh>(null);
+  useDynProp(id, room, net, ref, flash);
+  return (
+    <group ref={ref}>
+      <CrateMesh flashRef={flash} />
+    </group>
+  );
+}
+
+function Barrel({ id, room, net }: { id: string; room: RoomView; net: NetClient }) {
+  const ref = useRef<THREE.Group>(null);
+  const flash = useRef<THREE.Mesh>(null);
+  useDynProp(id, room, net, ref, flash);
+  return (
+    <group ref={ref}>
+      <BarrelMesh flashRef={flash} />
+    </group>
+  );
+}
+
+/** deterministic per-room decorative dressing — every room reads different */
+function Dressing({ room, accent }: { room: RoomView; accent: string }) {
+  const items = useMemo(() => {
+    const out: JSX.Element[] = [];
+    // wall screen with scanline glow (60% of rooms)
+    if (roomHash(room.coordId, 101) > 0.4) {
+      const onNorth = roomHash(room.coordId, 103) > 0.5;
+      const pos = 1.8 + roomHash(room.coordId, 105) * 5.4;
+      out.push(
+        <group
+          key="screen"
+          position={onNorth ? [pos, 1.55, 0.22] : [0.22, 1.55, pos]}
+          rotation={[0, onNorth ? 0 : Math.PI / 2, 0]}
+        >
+          <mesh>
+            <boxGeometry args={[0.9, 0.55, 0.06]} />
+            <meshStandardMaterial color="#151827" />
+          </mesh>
+          <mesh position={[0, 0, 0.035]}>
+            <planeGeometry args={[0.78, 0.42]} />
+            <meshStandardMaterial
+              color="#0a0f18"
+              emissive={accent}
+              emissiveIntensity={0.7}
+            />
+          </mesh>
+        </group>,
+      );
+    }
+    // floor grates (50%)
+    if (roomHash(room.coordId, 111) > 0.5) {
+      const gx = 1 + Math.floor(roomHash(room.coordId, 113) * 7);
+      const gz = 1 + Math.floor(roomHash(room.coordId, 115) * 7);
+      out.push(
+        <mesh
+          key="grate"
+          position={[gx + 0.5, 0.012, gz + 0.5]}
+          rotation={[-Math.PI / 2, 0, 0]}
+        >
+          <planeGeometry args={[0.8, 0.8]} />
+          <meshStandardMaterial color="#0d0f18" roughness={0.4} metalness={0.6} />
+        </mesh>,
+      );
+    }
+    // floor cable run along one wall (45%)
+    if (roomHash(room.coordId, 121) > 0.55) {
+      const south = roomHash(room.coordId, 123) > 0.5;
+      out.push(
+        <mesh
+          key="cable"
+          position={[4.5, 0.05, south ? 8.62 : 0.38]}
+          rotation={[0, 0, Math.PI / 2]}
+        >
+          <cylinderGeometry args={[0.045, 0.045, 7.6, 6]} />
+          <meshStandardMaterial color="#232634" roughness={0.5} />
+        </mesh>,
+      );
+    }
+    return out;
+  }, [room.coordId, accent]);
+  return <group>{items}</group>;
 }
 
 function Deployables({ room, net }: { room: RoomView; net: NetClient }) {

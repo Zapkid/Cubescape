@@ -6,6 +6,7 @@ import { Billboard, Text } from "@react-three/drei";
 import * as THREE from "three";
 import { CHARACTERS, type CharId } from "@cubescape/shared";
 import type { MobView, NetClient, PlayerView } from "./net";
+import { CharacterModel } from "./CharacterModel";
 import { useGame } from "./store";
 
 /** Re-render list-y things only when membership changes. */
@@ -82,7 +83,7 @@ function DeathBursts({ net, roomCoord }: { net: NetClient; roomCoord: string }) 
   return (
     <group>
       {bursts.map((b) => (
-        <Burst key={b.at} x={b.x} z={b.z} at={b.at} />
+        <Burst key={b.at} x={b.x} z={b.z} at={b.at} kind={b.kind} />
       ))}
     </group>
   );
@@ -90,7 +91,23 @@ function DeathBursts({ net, roomCoord }: { net: NetClient; roomCoord: string }) 
 
 const SHARD_ANGLES = [0.4, 1.5, 2.6, 3.7, 4.8, 5.9];
 
-function Burst({ x, z, at }: { x: number; z: number; at: number }) {
+const BURST_COLORS: Record<string, { ring: string; shard: string; glow: string }> = {
+  mob: { ring: "#8adf5a", shard: "#68b043", glow: "#8adf5a" },
+  crate: { ring: "#c9a06a", shard: "#7a5c38", glow: "#e2b87a" },
+  barrel: { ring: "#9aa4b8", shard: "#4a5468", glow: "#aab6d0" },
+};
+
+function Burst({
+  x,
+  z,
+  at,
+  kind = "mob",
+}: {
+  x: number;
+  z: number;
+  at: number;
+  kind?: string;
+}) {
   const ring = useRef<THREE.Mesh>(null);
   const shards = useRef<THREE.Group>(null);
   useFrame(() => {
@@ -111,17 +128,22 @@ function Burst({ x, z, at }: { x: number; z: number; at: number }) {
       });
     }
   });
+  const colors = BURST_COLORS[kind] ?? BURST_COLORS.mob!;
   return (
     <group position={[x, 0, z]}>
       <mesh ref={ring} position={[0, 0.06, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <ringGeometry args={[0.5, 0.62, 24]} />
-        <meshBasicMaterial color="#8adf5a" transparent opacity={0.8} depthWrite={false} />
+        <meshBasicMaterial color={colors.ring} transparent opacity={0.8} depthWrite={false} />
       </mesh>
       <group ref={shards}>
         {SHARD_ANGLES.map((a) => (
           <mesh key={a}>
             <boxGeometry args={[0.11, 0.11, 0.11]} />
-            <meshStandardMaterial color="#68b043" emissive="#8adf5a" emissiveIntensity={1.4} />
+            <meshStandardMaterial
+              color={colors.shard}
+              emissive={colors.glow}
+              emissiveIntensity={kind === "mob" ? 1.4 : 0.5}
+            />
           </mesh>
         ))}
       </group>
@@ -132,8 +154,15 @@ function Burst({ x, z, at }: { x: number; z: number; at: number }) {
 function PlayerRig({ net, sessionId }: { net: NetClient; sessionId: string }) {
   const group = useRef<THREE.Group>(null);
   const body = useRef<THREE.Group>(null);
+  const torso = useRef<THREE.Group>(null);
   const armL = useRef<THREE.Group>(null);
   const armR = useRef<THREE.Group>(null);
+  const elbowL = useRef<THREE.Group>(null);
+  const elbowR = useRef<THREE.Group>(null);
+  const legL = useRef<THREE.Group>(null);
+  const legR = useRef<THREE.Group>(null);
+  const kneeL = useRef<THREE.Group>(null);
+  const kneeR = useRef<THREE.Group>(null);
   const walkPhase = useRef(0);
   const smoothed = useRef<{ x: number; z: number; yaw: number } | null>(null);
   const isLocal = net.room?.sessionId === sessionId;
@@ -179,28 +208,47 @@ function PlayerRig({ net, sessionId }: { net: NetClient; sessionId: string }) {
       if (body.current) body.current.rotation.y = sm.yaw;
     }
 
-    walkPhase.current += dt * (moving ? 11 : 2);
+    walkPhase.current += dt * (moving ? 9.5 : 1.6);
+    const p2 = walkPhase.current;
     const attackAge = Date.now() - (net.attackAnims.get(sessionId) ?? 0);
     const attacking = attackAge < 240;
+    const attackT = attacking ? 1 - attackAge / 240 : 0;
+    const idleBreath = Math.sin(p2 * 0.9) * 0.015;
+
     if (body.current) {
       body.current.position.y = pl.downed
-        ? 0.3
-        : 0.62 + (moving ? Math.abs(Math.sin(walkPhase.current)) * 0.06 : 0.01);
+        ? 0.22
+        : moving
+          ? Math.abs(Math.sin(p2 * 2)) * 0.045
+          : idleBreath;
       body.current.rotation.x = pl.downed
         ? Math.PI / 2
-        : attacking
-          ? 0.28 * (1 - attackAge / 240) // forward lunge on any ability/strike
-          : moving
-            ? 0.07
-            : 0;
+        : attackT * 0.24 + (moving ? 0.08 : 0);
     }
-    // arms: swing while walking, right arm jabs on attack
-    const swing = moving ? Math.sin(walkPhase.current) * 0.7 : 0.05;
-    if (armL.current) armL.current.rotation.x = swing;
+    if (torso.current) {
+      // counter-twist against the stride
+      torso.current.rotation.y = moving ? Math.sin(p2) * 0.09 : 0;
+    }
+    // legs: hip swing + knee flex during the back-to-front swing
+    const swing = moving ? Math.sin(p2) : 0;
+    if (legL.current) legL.current.rotation.x = swing * 0.62;
+    if (legR.current) legR.current.rotation.x = -swing * 0.62;
+    if (kneeL.current)
+      kneeL.current.rotation.x = moving ? Math.max(0, -Math.sin(p2 - 0.5)) * 0.85 : 0.04;
+    if (kneeR.current)
+      kneeR.current.rotation.x = moving ? Math.max(0, Math.sin(p2 - 0.5)) * 0.85 : 0.04;
+    // arms counter-swing; right arm jabs on attack
+    if (armL.current) armL.current.rotation.x = moving ? -swing * 0.5 : 0.06;
     if (armR.current) {
-      armR.current.rotation.x = attacking
-        ? -1.6 * (1 - attackAge / 240)
-        : -swing;
+      armR.current.rotation.x = attacking ? -1.7 * attackT : moving ? swing * 0.5 : 0.06;
+    }
+    if (elbowL.current) elbowL.current.rotation.x = moving ? -0.35 - Math.max(0, swing) * 0.3 : -0.25;
+    if (elbowR.current) {
+      elbowR.current.rotation.x = attacking
+        ? -0.15
+        : moving
+          ? -0.35 - Math.max(0, -swing) * 0.3
+          : -0.25;
     }
   });
 
@@ -210,95 +258,16 @@ function PlayerRig({ net, sessionId }: { net: NetClient; sessionId: string }) {
   return (
     <group ref={group}>
       <BlobShadow radius={0.38} />
-      <group ref={body} position={[0, 0.62, 0]}>
-        {/* rounded astronaut body: head and torso merge into one soft capsule */}
-        <mesh castShadow>
-          <capsuleGeometry args={[0.3, 0.34, 8, 16]} />
-          <meshStandardMaterial
-            color={color}
-            roughness={0.6}
-            emissive={color}
-            emissiveIntensity={grappling ? 0.7 : 0.06}
-          />
-        </mesh>
-        {/* BIG glowing visor — the face IS the visor */}
-        <mesh position={[0, 0.28, 0.21]} rotation={[-0.08, 0, 0]}>
-          <capsuleGeometry args={[0.13, 0.14, 6, 12]} />
-          <meshStandardMaterial
-            color="#0a1a22"
-            emissive="#8ae8ff"
-            emissiveIntensity={2.4}
-            roughness={0.15}
-          />
-        </mesh>
-        {/* visor rim */}
-        <mesh position={[0, 0.28, 0.185]} rotation={[-0.08, 0, 0]}>
-          <capsuleGeometry args={[0.155, 0.15, 6, 12]} />
-          <meshStandardMaterial color="#11141f" roughness={0.4} />
-        </mesh>
-        {/* life-support backpack (everyone — we're all trapped in the same suit) */}
-        <mesh position={[0, 0.1, -0.26]}>
-          <boxGeometry args={[0.34, 0.44, 0.16]} />
-          <meshStandardMaterial color="#181c2a" />
-        </mesh>
-        <mesh position={[0, 0.32, -0.3]}>
-          <boxGeometry args={[0.1, 0.06, 0.05]} />
-          <meshStandardMaterial color={color} emissive={color} emissiveIntensity={1.6} />
-        </mesh>
-        {/* stubby arms */}
-        <group ref={armL} position={[-0.34, 0.08, 0]}>
-          <mesh position={[0, -0.12, 0]}>
-            <capsuleGeometry args={[0.09, 0.2, 4, 8]} />
-            <meshStandardMaterial color={color} roughness={0.6} />
-          </mesh>
-        </group>
-        <group ref={armR} position={[0.34, 0.08, 0]}>
-          <mesh position={[0, -0.12, 0]}>
-            <capsuleGeometry args={[0.09, 0.2, 4, 8]} />
-            <meshStandardMaterial color={color} roughness={0.6} />
-          </mesh>
-        </group>
-        {/* stubby legs */}
-        <mesh position={[-0.13, -0.5, 0]}>
-          <capsuleGeometry args={[0.095, 0.12, 4, 8]} />
-          <meshStandardMaterial color="#14161f" />
-        </mesh>
-        <mesh position={[0.13, -0.5, 0]}>
-          <capsuleGeometry args={[0.095, 0.12, 4, 8]} />
-          <meshStandardMaterial color="#14161f" />
-        </mesh>
-        {/* char silhouette gear */}
-        {charId === "brute" ? (
-          <>
-            <mesh position={[-0.36, 0.24, 0]}>
-              <boxGeometry args={[0.2, 0.14, 0.3]} />
-              <meshStandardMaterial color="#8a2f28" />
-            </mesh>
-            <mesh position={[0.36, 0.24, 0]}>
-              <boxGeometry args={[0.2, 0.14, 0.3]} />
-              <meshStandardMaterial color="#8a2f28" />
-            </mesh>
-          </>
-        ) : charId === "tinker" ? (
-          <>
-            <mesh position={[0.12, 0.42, -0.3]}>
-              <cylinderGeometry args={[0.014, 0.014, 0.4, 4]} />
-              <meshStandardMaterial color="#c0c0d0" />
-            </mesh>
-            <mesh position={[0.12, 0.64, -0.3]}>
-              <sphereGeometry args={[0.035, 6, 6]} />
-              <meshStandardMaterial color="#e2c94c" emissive="#e2c94c" emissiveIntensity={2.4} />
-            </mesh>
-          </>
-        ) : (
-          <mesh position={[0, 0.56, -0.08]} rotation={[0.9, 0, 0]}>
-            <coneGeometry args={[0.1, 0.3, 6]} />
-            <meshStandardMaterial color="#2a7d92" />
-          </mesh>
-        )}
+      <group ref={body}>
+        <CharacterModel
+          charId={charId}
+          color={color}
+          glow={grappling}
+          refs={{ torso, armL, armR, elbowL, elbowR, legL, legR, kneeL, kneeR }}
+        />
       </group>
       {/* name + status */}
-      <Billboard position={[0, 1.75, 0]}>
+      <Billboard position={[0, 2.02, 0]}>
         <Text
           fontSize={0.22}
           color={p.downed ? "#f43f5e" : "#e2e8f0"}
@@ -313,7 +282,7 @@ function PlayerRig({ net, sessionId }: { net: NetClient; sessionId: string }) {
       <HpBar getRatio={() => {
         const pl = net.state?.players.get(sessionId);
         return pl ? pl.hp / Math.max(1, pl.maxHp) : 0;
-      }} y={1.5} width={0.8} color={color} />
+      }} y={1.86} width={0.8} color={color} />
       {/* emote bubble */}
       <EmoteBubble net={net} sessionId={sessionId} />
       {/* revive ring while downed */}
@@ -335,7 +304,7 @@ function EmoteBubble({ net, sessionId }: { net: NetClient; sessionId: string }) 
   });
   if (!emote) return null;
   return (
-    <group ref={ref} position={[0, 2.15, 0]}>
+    <group ref={ref} position={[0, 2.4, 0]}>
       <Text fontSize={0.42} anchorX="center">
         {emote === "taunt" ? "😤" : "👉"}
       </Text>

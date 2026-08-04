@@ -51,11 +51,21 @@ import {
 import {
   Deployable,
   DoorState,
+  DynProp,
   MatchState,
   MobState,
   PlayerState,
   RoomState,
 } from "../schema/MatchState.js";
+import {
+  DYN_PROP_DEFS,
+  MOB_RADIUS,
+  PLAYER_RADIUS,
+  collideCircleObstacles,
+  resolveMove,
+  type CircleObstacle,
+  type DynPropKind,
+} from "@cubescape/shared";
 
 const STEP_BUDGET_CAPACITY = 15;
 
@@ -109,6 +119,20 @@ export class Simulation {
         ds.edgeId = edgeIdFor(id, d.face);
         rs.doors.push(ds);
       }
+      // crates/barrels become live physics objects
+      const template = getTemplate(roomSpec.templateId);
+      template.props.forEach((prop, pi) => {
+        if (prop.type !== "crate" && prop.type !== "barrel") return;
+        const def = DYN_PROP_DEFS[prop.type as DynPropKind];
+        const dp = new DynProp();
+        dp.id = prop.id ?? `${prop.type}${pi}`;
+        dp.kind = prop.type;
+        dp.x = prop.cell[0] + 0.5;
+        dp.z = prop.cell[1] + 0.5;
+        dp.hp = def.hp;
+        dp.maxHp = def.hp;
+        rs.dynProps.set(dp.id, dp);
+      });
       this.state.rooms.set(id, rs);
     }
   }
@@ -244,9 +268,18 @@ export class Simulation {
         .filter((d) => d.face !== "U" && d.face !== "D")
         .map((d) => this.doorInfo(d)),
       crackedCells,
-      mobs: [...room.mobs.values()]
-        .filter((m) => !m.friendly && m.hp > 0)
-        .map((m) => ({ id: m.id, x: m.x, z: m.z, hp: m.hp })),
+      mobs: [
+        ...[...room.mobs.values()]
+          .filter((m) => !m.friendly && m.hp > 0)
+          .map((m) => ({ id: m.id, x: m.x, z: m.z, hp: m.hp })),
+        // breakable environment objects are valid targets too
+        ...[...room.dynProps.values()].map((d) => ({
+          id: `prop:${d.id}`,
+          x: d.x,
+          z: d.z,
+          hp: d.hp,
+        })),
+      ],
       bypassUsedInRoom: room.bypassUsed,
       belowExists: this.state.rooms.has(coordId(below)),
     };
@@ -352,6 +385,7 @@ export class Simulation {
       );
       p.x = res.state.x;
       p.z = res.state.z;
+      this.resolvePropPhysics(room, p);
       p.lastProcessedSeq = step.seq;
       if (res.exitFace) {
         this.transition(p, res.exitFace);
@@ -368,6 +402,80 @@ export class Simulation {
       }
     }
     this.stepBudget.set(sessionId, budget);
+  }
+
+  /** player-vs-crate collision: player is pushed out, crates get shoved (and
+   *  slide along walls, block on each other, and SINK into pits as bridges) */
+  private resolvePropPhysics(room: RoomState, p: PlayerState): void {
+    if (room.dynProps.size === 0) return;
+    const obstacles: CircleObstacle[] = [];
+    room.dynProps.forEach((d) => {
+      obstacles.push({
+        id: d.id,
+        x: d.x,
+        z: d.z,
+        radius: DYN_PROP_DEFS[d.kind as DynPropKind].radius,
+      });
+    });
+    const resolved = collideCircleObstacles(p.x, p.z, PLAYER_RADIUS, obstacles);
+    p.x = resolved.x;
+    p.z = resolved.z;
+
+    const tiles = this.tilesOf(room.templateId);
+    // static solids only — pits excluded so props can be shoved INTO them
+    const solidNoPit = (tx: number, tz: number): boolean => {
+      if (tx < 0 || tx >= 9 || tz < 0 || tz >= 9) return true;
+      if (this.solidPropsOf(room.templateId).has(`${tx},${tz}`)) return true;
+      return false;
+    };
+
+    for (const push of resolved.pushes) {
+      const prop = room.dynProps.get(push.id);
+      if (!prop) continue;
+      const def = DYN_PROP_DEFS[prop.kind as DynPropKind];
+      if (!def.pushable) continue;
+      const moved = resolveMove(
+        prop.x,
+        prop.z,
+        push.dx * 0.9,
+        push.dz * 0.9,
+        def.radius,
+        solidNoPit,
+      );
+      // blocked by another prop? then stay put
+      let overlapsOther = false;
+      room.dynProps.forEach((other) => {
+        if (other.id === prop.id) return;
+        const otherR = DYN_PROP_DEFS[other.kind as DynPropKind].radius;
+        if (Math.hypot(moved.x - other.x, moved.z - other.z) < def.radius + otherR) {
+          overlapsOther = true;
+        }
+      });
+      if (overlapsOther) continue;
+      prop.x = moved.x;
+      prop.z = moved.z;
+
+      // sink into pits: the object becomes a bridge
+      const cellX = Math.floor(prop.x);
+      const cellZ = Math.floor(prop.z);
+      const tile = tiles[cellZ]?.[cellX];
+      const key = `${cellX},${cellZ}`;
+      if (
+        (tile === "pit" || tile === "void") &&
+        !room.walkableOverrides.includes(key)
+      ) {
+        room.dynProps.delete(prop.id);
+        room.walkableOverrides.push(key);
+        this.emit({
+          t: "message",
+          text:
+            prop.kind === "crate"
+              ? "The crate crashes into the pit — a makeshift bridge!"
+              : "The barrel tumbles into the pit and wedges tight.",
+        });
+        this.emit({ t: "propSink", room: room.coordId, cell: key });
+      }
+    }
   }
 
   private updateRoom(room: RoomState, tick: number): void {
@@ -479,6 +587,21 @@ export class Simulation {
       const { mob: next, effects } = stepMob(sim, targets, solid, tick, TICK_DT);
       mob.x = next.x;
       mob.z = next.z;
+      // mobs bump into crates but don't shove them
+      if (room.dynProps.size > 0) {
+        const obs: CircleObstacle[] = [];
+        room.dynProps.forEach((d) =>
+          obs.push({
+            id: d.id,
+            x: d.x,
+            z: d.z,
+            radius: DYN_PROP_DEFS[d.kind as DynPropKind].radius,
+          }),
+        );
+        const c = collideCircleObstacles(mob.x, mob.z, MOB_RADIUS, obs);
+        mob.x = c.x;
+        mob.z = c.z;
+      }
       mob.ai = next.ai;
       mob.stateUntil = next.stateUntil;
       mob.targetId = next.targetId;
@@ -555,6 +678,10 @@ export class Simulation {
           break;
         }
         case "damageMob": {
+          if (e.mobId.startsWith("prop:")) {
+            this.damageProp(room, e.mobId.slice(5), e.amount);
+            break;
+          }
           const mob = [...room.mobs.values()].find((m) => m.id === e.mobId);
           if (!mob || mob.hp <= 0) break;
           mob.hp -= e.amount;
@@ -667,6 +794,23 @@ export class Simulation {
           this.emit({ t: "message", text: e.text });
           break;
       }
+    }
+  }
+
+  private damageProp(room: RoomState, propId: string, amount: number): void {
+    const prop = room.dynProps.get(propId);
+    if (!prop) return;
+    prop.hp -= amount;
+    this.emit({ t: "hit", mobId: `prop:${propId}`, room: room.coordId, amount });
+    if (prop.hp <= 0) {
+      this.emit({
+        t: "propBreak",
+        room: room.coordId,
+        x: prop.x,
+        z: prop.z,
+        kind: prop.kind,
+      });
+      room.dynProps.delete(propId);
     }
   }
 
@@ -856,6 +1000,12 @@ export class Simulation {
     for (const dep of room.deployables) {
       if (dep.kind === "token" && dep.untilTick > this.state.tick) count++;
     }
+    // a crate shoved onto a plate holds it down — sokoban rules
+    room.dynProps.forEach((d) => {
+      const dx = Math.floor(d.x);
+      const dz = Math.floor(d.z);
+      if (cells.some((c) => c[0] === dx && c[1] === dz)) count++;
+    });
     return count;
   }
 

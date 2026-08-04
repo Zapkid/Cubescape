@@ -212,15 +212,21 @@ export function executeAbility(id: AbilityId, ctx: AbilityCtx): AbilityResult {
         },
       ]);
     case "punch": {
-      const effects: Effect[] = [];
+      // single target: the NEAREST thing in the cone
+      let best: MobView | undefined;
+      let bestD = PUNCH_RANGE;
       for (const m of ctx.mobs) {
         if (m.hp <= 0) continue;
-        if (inCone(c.x, c.z, ctx.yaw, m.x, m.z, PUNCH_RANGE, Math.PI * 0.5)) {
-          effects.push({ type: "damageMob", mobId: m.id, amount: PUNCH_DAMAGE });
-          break; // single target
+        if (!inCone(c.x, c.z, ctx.yaw, m.x, m.z, PUNCH_RANGE, Math.PI * 0.5)) continue;
+        const d = Math.hypot(m.x - c.x, m.z - c.z);
+        if (d <= bestD) {
+          bestD = d;
+          best = m;
         }
       }
-      return done(effects);
+      return done(
+        best ? [{ type: "damageMob", mobId: best.id, amount: PUNCH_DAMAGE }] : [],
+      );
     }
   }
 }

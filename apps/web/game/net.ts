@@ -4,11 +4,16 @@ import { Client, Room } from "colyseus.js";
 import {
   CHARACTERS,
   CLIENT_SIM_DT,
+  DYN_PROP_DEFS,
+  PLAYER_RADIUS,
+  collideCircleObstacles,
   getTemplate,
   parseTiles,
   stepPlayer,
   SOLID_PROP_TYPES,
   type CharId,
+  type CircleObstacle,
+  type DynPropKind,
   type Face,
   type MoveContext,
   type ServerEvent,
@@ -48,12 +53,21 @@ export interface DeployableView {
   z: number;
   untilTick: number;
 }
+export interface DynPropView {
+  id: string;
+  kind: string;
+  x: number;
+  z: number;
+  hp: number;
+  maxHp: number;
+}
 export interface RoomView {
   coordId: string;
   templateId: string;
   doors: DoorView[];
   mobs: Map<string, MobView>;
   deployables: DeployableView[];
+  dynProps: Map<string, DynPropView>;
   cleared: boolean;
   visited: boolean;
   keyColor: string;
@@ -135,8 +149,14 @@ export class NetClient {
   attackAnims = new Map<string, number>();
   /** mobId -> ms timestamp of last damage taken (white hit-flash) */
   hitFlashes = new Map<string, number>();
-  /** mob death VFX queue */
-  private deathBursts: { room: string; x: number; z: number; at: number }[] = [];
+  /** death/break VFX queue */
+  private deathBursts: {
+    room: string;
+    x: number;
+    z: number;
+    at: number;
+    kind: string;
+  }[] = [];
   /** tester diagnostics */
   fps = 0;
   rttMs = 0;
@@ -144,8 +164,8 @@ export class NetClient {
   private rttSample: { seq: number; at: number } | null = null;
   private lastFrameForFps = 0;
 
-  /** live death bursts (auto-pruned) */
-  bursts(room: string): { x: number; z: number; at: number }[] {
+  /** live bursts (auto-pruned) */
+  bursts(room: string): { x: number; z: number; at: number; kind: string }[] {
     const now = Date.now();
     this.deathBursts = this.deathBursts.filter((b) => now - b.at < 700);
     return this.deathBursts.filter((b) => b.room === room);
@@ -190,7 +210,7 @@ export class NetClient {
           useGame.getState().setShake();
         }
         if (
-          e.t === "mobDie" &&
+          (e.t === "mobDie" || e.t === "propBreak") &&
           typeof e.x === "number" &&
           typeof e.z === "number"
         ) {
@@ -199,6 +219,7 @@ export class NetClient {
             x: e.x,
             z: e.z,
             at: Date.now(),
+            kind: e.t === "propBreak" ? String(e.kind ?? "crate") : "mob",
           });
         }
         if (e.t === "ping") {
@@ -303,6 +324,7 @@ export class NetClient {
       if (ctx) {
         const res = stepPlayer(this.sim, step, CLIENT_SIM_DT, ctx, this.speedMult(me));
         this.sim = res.state;
+        this.collideProps(me);
       }
       this.pending.push(step);
       this.outbox.push(step);
@@ -338,8 +360,14 @@ export class NetClient {
     let sim = { x: me.x, y: me.y, z: me.z, vy: 0 };
     const ctx = this.moveContext(me);
     if (!ctx) return;
+    const obstacles = this.propObstacles(me);
     for (const step of this.pending) {
       sim = stepPlayer(sim, step, CLIENT_SIM_DT, ctx, this.speedMult(me)).state;
+      if (obstacles.length > 0) {
+        const c = collideCircleObstacles(sim.x, sim.z, PLAYER_RADIUS, obstacles);
+        sim.x = c.x;
+        sim.z = c.z;
+      }
     }
     const divergence = Math.hypot(sim.x - this.sim.x, sim.z - this.sim.z);
     useGame.getState().setLastCorrection(divergence);
@@ -357,6 +385,31 @@ export class NetClient {
   private speedMult(me: PlayerView): number {
     const def = CHARACTERS[(me.charId || "scout") as CharId];
     return def?.speedMult ?? 1;
+  }
+
+  private propObstacles(me: PlayerView): CircleObstacle[] {
+    const room = this.state?.rooms.get(me.roomCoord);
+    if (!room || room.dynProps.size === 0) return [];
+    const out: CircleObstacle[] = [];
+    room.dynProps.forEach((d) => {
+      out.push({
+        id: d.id,
+        x: d.x,
+        z: d.z,
+        radius: DYN_PROP_DEFS[d.kind as DynPropKind]?.radius ?? 0.35,
+      });
+    });
+    return out;
+  }
+
+  /** predicted player collides against crates at their last synced positions;
+   *  the server does the actual shoving */
+  private collideProps(me: PlayerView): void {
+    const obstacles = this.propObstacles(me);
+    if (obstacles.length === 0) return;
+    const c = collideCircleObstacles(this.sim.x, this.sim.z, PLAYER_RADIUS, obstacles);
+    this.sim.x = c.x;
+    this.sim.z = c.z;
   }
 
   moveContext(me: PlayerView): MoveContext | null {

@@ -36,6 +36,16 @@ export class MobState extends Schema {
   @type("string") targetId = "";
 }
 
+/** pushable/breakable environment object (crate, barrel) */
+export class DynProp extends Schema {
+  @type("string") id = "";
+  @type("string") kind = "crate";
+  @type("number") x = 0;
+  @type("number") z = 0;
+  @type("number") hp = 25;
+  @type("number") maxHp = 25;
+}
+
 export class Deployable extends Schema {
   @type("string") id = "";
   /** holdfast token | fieldkit */
@@ -52,6 +62,7 @@ export class RoomState extends Schema {
   @type([DoorState]) doors = new ArraySchema<DoorState>();
   @type({ map: MobState }) mobs = new MapSchema<MobState>();
   @type([Deployable]) deployables = new ArraySchema<Deployable>();
+  @type({ map: DynProp }) dynProps = new MapSchema<DynProp>();
   @type("boolean") cleared = false;
   @type("boolean") visited = false;
   @type("string") keyColor = "";

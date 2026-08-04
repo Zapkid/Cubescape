@@ -3,7 +3,11 @@
   "version": 1,
   "archetype": "combat",
   "displayName": "Slime Pen",
-  "grid": { "w": 9, "d": 9, "h": 5 },
+  "grid": {
+    "w": 9,
+    "d": 9,
+    "h": 5
+  },
   "tiles": [
     ".........",
     ".........",
@@ -15,28 +19,167 @@
     ".........",
     "........."
   ],
-  "tileLegend": { ".": "floor" },
+  "tileLegend": {
+    ".": "floor"
+  },
   "props": [
-    { "type": "pillar", "cell": [2, 2] },
-    { "type": "pillar", "cell": [6, 2] },
-    { "type": "pillar", "cell": [2, 6] },
-    { "type": "pillar", "cell": [6, 6] },
-    { "type": "mob_spawn", "cell": [3, 3], "id": "m1", "meta": { "kind": "slime" } },
-    { "type": "mob_spawn", "cell": [5, 5], "id": "m2", "meta": { "kind": "slime" } },
-    { "type": "mob_spawn", "cell": [4, 6], "id": "m3", "meta": { "kind": "slime" } }
+    {
+      "type": "pillar",
+      "cell": [
+        2,
+        2
+      ]
+    },
+    {
+      "type": "pillar",
+      "cell": [
+        6,
+        2
+      ]
+    },
+    {
+      "type": "pillar",
+      "cell": [
+        2,
+        6
+      ]
+    },
+    {
+      "type": "pillar",
+      "cell": [
+        6,
+        6
+      ]
+    },
+    {
+      "type": "mob_spawn",
+      "cell": [
+        3,
+        3
+      ],
+      "id": "m1",
+      "meta": {
+        "kind": "slime"
+      }
+    },
+    {
+      "type": "mob_spawn",
+      "cell": [
+        5,
+        5
+      ],
+      "id": "m2",
+      "meta": {
+        "kind": "slime"
+      }
+    },
+    {
+      "type": "mob_spawn",
+      "cell": [
+        4,
+        6
+      ],
+      "id": "m3",
+      "meta": {
+        "kind": "slime"
+      }
+    },
+    {
+      "type": "barrel",
+      "cell": [
+        1,
+        4
+      ],
+      "rotY": 0,
+      "id": "b1",
+      "meta": {}
+    }
   ],
   "doorSlots": [
-    { "allowedGates": ["open", "key", "stat", "plates", "objective"], "cell": [4, 0] },
-    { "allowedGates": ["open", "key", "stat", "plates", "objective"], "cell": [8, 4] },
-    { "allowedGates": ["open", "key", "stat", "plates", "objective"], "cell": [4, 8] },
-    { "allowedGates": ["open", "key", "stat", "plates", "objective"], "cell": [0, 4] },
+    {
+      "allowedGates": [
+        "open",
+        "key",
+        "stat",
+        "plates",
+        "objective"
+      ],
+      "cell": [
+        4,
+        0
+      ]
+    },
+    {
+      "allowedGates": [
+        "open",
+        "key",
+        "stat",
+        "plates",
+        "objective"
+      ],
+      "cell": [
+        8,
+        4
+      ]
+    },
+    {
+      "allowedGates": [
+        "open",
+        "key",
+        "stat",
+        "plates",
+        "objective"
+      ],
+      "cell": [
+        4,
+        8
+      ]
+    },
+    {
+      "allowedGates": [
+        "open",
+        "key",
+        "stat",
+        "plates",
+        "objective"
+      ],
+      "cell": [
+        0,
+        4
+      ]
+    },
     null,
-    { "allowedGates": ["open"], "cell": [7, 7] }
+    {
+      "allowedGates": [
+        "open"
+      ],
+      "cell": [
+        7,
+        7
+      ]
+    }
   ],
   "logicId": "combat_clear",
   "logicParams": {},
-  "lighting": { "ambient": "#241a0e", "point": "#f59e0b", "intensity": 1.4 },
-  "spawnCells": [[1, 1], [7, 1], [1, 7]],
+  "lighting": {
+    "ambient": "#241a0e",
+    "point": "#f59e0b",
+    "intensity": 1.4
+  },
+  "spawnCells": [
+    [
+      1,
+      1
+    ],
+    [
+      7,
+      1
+    ],
+    [
+      1,
+      7
+    ]
+  ],
   "weight": 1.4,
   "maxPerCube": 3,
   "minPerCube": 0
