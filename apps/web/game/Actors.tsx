@@ -6,7 +6,15 @@ import { Billboard, Text } from "@react-three/drei";
 import * as THREE from "three";
 import { CHARACTERS, type CharId } from "@cubescape/shared";
 import type { MobView, NetClient, PlayerView } from "./net";
-import { BarrelMesh, CharacterModel, CrateMesh, LockboxMesh } from "./CharacterModel";
+import {
+  BarrelMesh,
+  CharacterModel,
+  CrateMesh,
+  LockboxMesh,
+  SlimeMesh,
+  TurretMesh,
+  poseRig,
+} from "./CharacterModel";
 import { camInfo, useGame } from "./store";
 
 /** Re-render list-y things only when membership changes. */
@@ -212,8 +220,7 @@ function PlayerRig({ net, sessionId }: { net: NetClient; sessionId: string }) {
     walkPhase.current += dt * (moving ? 9.5 : 1.6);
     const p2 = walkPhase.current;
     const attackAge = Date.now() - (net.attackAnims.get(sessionId) ?? 0);
-    const attacking = attackAge < 240;
-    const attackT = attacking ? 1 - attackAge / 240 : 0;
+    const attackT = attackAge < 240 ? 1 - attackAge / 240 : 0;
     const idleBreath = Math.sin(p2 * 0.9) * 0.015;
 
     if (body.current) {
@@ -229,23 +236,10 @@ function PlayerRig({ net, sessionId }: { net: NetClient; sessionId: string }) {
         ? Math.PI / 2
         : attackT * 0.24 + (moving ? 0.08 : 0);
     }
-    if (torso.current) {
-      // counter-twist against the stride
-      torso.current.rotation.y = moving ? Math.sin(p2) * 0.09 : 0;
-    }
-    // legs: hip swing + knee flex during the back-to-front swing
-    const swing = moving ? Math.sin(p2) : 0;
-    if (legL.current) legL.current.rotation.x = swing * 0.62;
-    if (legR.current) legR.current.rotation.x = -swing * 0.62;
-    if (kneeL.current)
-      kneeL.current.rotation.x = moving ? Math.max(0, -Math.sin(p2 - 0.5)) * 0.85 : 0.04;
-    if (kneeR.current)
-      kneeR.current.rotation.x = moving ? Math.max(0, Math.sin(p2 - 0.5)) * 0.85 : 0.04;
-    // arms counter-swing; right arm jabs on attack
-    if (armL.current) armL.current.rotation.x = moving ? -swing * 0.5 : 0.06;
-    if (armR.current) {
-      armR.current.rotation.x = attacking ? -1.7 * attackT : moving ? swing * 0.5 : 0.06;
-    }
+    poseRig(
+      { torso, armL, armR, elbowL, elbowR, legL, legR, kneeL, kneeR },
+      { phase: p2, moving, attackT },
+    );
     // carried prop hovers over the head; swap which mesh shows by kind
     if (carryRef.current) {
       for (const child of carryRef.current.children) {
@@ -253,14 +247,6 @@ function PlayerRig({ net, sessionId }: { net: NetClient; sessionId: string }) {
       }
       carryRef.current.visible = !!pl.carryProp && !pl.downed;
       carryRef.current.rotation.y += dt * 0.8;
-    }
-    if (elbowL.current) elbowL.current.rotation.x = moving ? -0.35 - Math.max(0, swing) * 0.3 : -0.25;
-    if (elbowR.current) {
-      elbowR.current.rotation.x = attacking
-        ? -0.15
-        : moving
-          ? -0.35 - Math.max(0, -swing) * 0.3
-          : -0.25;
     }
   });
 
@@ -462,72 +448,11 @@ function Mob({
       <BlobShadow radius={kind === "slime" ? 0.32 : 0.4} />
       {kind === "slime" ? (
         <group>
-          <mesh ref={blob} position={[0, 0.32, 0]} castShadow>
-            <sphereGeometry args={[0.34, 14, 12]} />
-            <meshStandardMaterial
-              color="#5da53c"
-              emissive="#8adf5a"
-              emissiveIntensity={0.3}
-              transparent
-              opacity={0.92}
-              roughness={0.25}
-            />
-          </mesh>
-          {/* inner core gives it a jelly read */}
-          <mesh position={[0, 0.28, 0]}>
-            <sphereGeometry args={[0.18, 10, 8]} />
-            <meshStandardMaterial color="#3d7a24" transparent opacity={0.85} />
-          </mesh>
-          {/* eyes */}
-          <mesh position={[-0.11, 0.42, 0.26]}>
-            <sphereGeometry args={[0.055, 8, 8]} />
-            <meshStandardMaterial color="#0c1408" />
-          </mesh>
-          <mesh position={[0.11, 0.42, 0.26]}>
-            <sphereGeometry args={[0.055, 8, 8]} />
-            <meshStandardMaterial color="#0c1408" />
-          </mesh>
+          <SlimeMesh blobRef={blob} />
         </group>
       ) : (
         <group>
-          {/* tripod legs */}
-          {[0, 2.094, 4.189].map((a) => (
-            <mesh
-              key={a}
-              position={[Math.sin(a) * 0.22, 0.16, Math.cos(a) * 0.22]}
-              rotation={[0.5 * Math.cos(a), 0, -0.5 * Math.sin(a)]}
-            >
-              <cylinderGeometry args={[0.035, 0.05, 0.42, 6]} />
-              <meshStandardMaterial color="#2c2c3a" />
-            </mesh>
-          ))}
-          <mesh position={[0, 0.42, 0]}>
-            <cylinderGeometry args={[0.2, 0.26, 0.3, 8]} />
-            <meshStandardMaterial color={friendly ? "#8a7a3a" : "#3a3444"} />
-          </mesh>
-          {/* rotating head + barrel + eye */}
-          <group ref={head} position={[0, 0.68, 0]}>
-            <mesh ref={blob}>
-              <boxGeometry args={[0.3, 0.22, 0.42]} />
-              <meshStandardMaterial
-                color={friendly ? "#e2c94c" : "#8a4a62"}
-                emissive={friendly ? "#e2c94c" : "#f43f5e"}
-                emissiveIntensity={0.3}
-              />
-            </mesh>
-            <mesh position={[0, 0, 0.32]} rotation={[Math.PI / 2, 0, 0]}>
-              <cylinderGeometry args={[0.05, 0.05, 0.26, 8]} />
-              <meshStandardMaterial color="#1c1c28" />
-            </mesh>
-            <mesh position={[0, 0.08, 0.18]}>
-              <sphereGeometry args={[0.05, 8, 8]} />
-              <meshStandardMaterial
-                color={friendly ? "#fff7c2" : "#ff5a70"}
-                emissive={friendly ? "#e2c94c" : "#f43f5e"}
-                emissiveIntensity={2.4}
-              />
-            </mesh>
-          </group>
+          <TurretMesh blobRef={blob} headRef={head} friendly={friendly} />
         </group>
       )}
       <HpBar

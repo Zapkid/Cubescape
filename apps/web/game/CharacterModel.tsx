@@ -1,6 +1,7 @@
 "use client";
 import type { RefObject } from "react";
 import type * as THREE from "three";
+import { RoundedBox } from "@react-three/drei";
 import type { CharId } from "@cubescape/shared";
 
 export interface RigRefs {
@@ -13,6 +14,50 @@ export interface RigRefs {
   legR?: RefObject<THREE.Group>;
   kneeL?: RefObject<THREE.Group>;
   kneeR?: RefObject<THREE.Group>;
+}
+
+export interface RigPose {
+  /** walk-cycle phase (radians, keeps advancing while idle for breathing) */
+  phase: number;
+  moving: boolean;
+  /** 1 at the instant a strike lands, decaying to 0 over ~240ms */
+  attackT: number;
+}
+
+/**
+ * THE walk/attack pose. Shared by the in-game PlayerRig and the rig viewer so
+ * the animation is authored exactly once.
+ */
+export function poseRig(refs: RigRefs, pose: RigPose): void {
+  const { phase: p2, moving, attackT } = pose;
+  const attacking = attackT > 0;
+  const swing = moving ? Math.sin(p2) : 0;
+  if (refs.torso?.current) {
+    // counter-twist against the stride
+    refs.torso.current.rotation.y = moving ? Math.sin(p2) * 0.09 : 0;
+  }
+  // legs: hip swing + knee flex during the back-to-front swing
+  if (refs.legL?.current) refs.legL.current.rotation.x = swing * 0.62;
+  if (refs.legR?.current) refs.legR.current.rotation.x = -swing * 0.62;
+  if (refs.kneeL?.current)
+    refs.kneeL.current.rotation.x = moving ? Math.max(0, -Math.sin(p2 - 0.5)) * 0.85 : 0.04;
+  if (refs.kneeR?.current)
+    refs.kneeR.current.rotation.x = moving ? Math.max(0, Math.sin(p2 - 0.5)) * 0.85 : 0.04;
+  // arms counter-swing; right arm jabs on attack
+  if (refs.armL?.current) refs.armL.current.rotation.x = moving ? -swing * 0.5 : 0.06;
+  if (refs.armR?.current) {
+    refs.armR.current.rotation.x = attacking ? -1.7 * attackT : moving ? swing * 0.5 : 0.06;
+  }
+  if (refs.elbowL?.current) {
+    refs.elbowL.current.rotation.x = moving ? -0.35 - Math.max(0, swing) * 0.3 : -0.25;
+  }
+  if (refs.elbowR?.current) {
+    refs.elbowR.current.rotation.x = attacking
+      ? -0.15
+      : moving
+        ? -0.35 - Math.max(0, -swing) * 0.3
+        : -0.25;
+  }
 }
 
 /**
@@ -57,49 +102,42 @@ export function CharacterModel({
               <capsuleGeometry args={[0.068, 0.2, 4, 10]} />
               <meshStandardMaterial color="#3a4160" roughness={0.7} />
             </mesh>
-            <mesh position={[0, -0.28, 0.045]}>
-              <boxGeometry args={[0.15, 0.1, 0.26]} />
+            <RoundedBox
+              args={[0.15, 0.11, 0.27]}
+              radius={0.04}
+              smoothness={4}
+              position={[0, -0.28, 0.045]}
+            >
               <meshStandardMaterial color="#2c3350" roughness={0.5} metalness={0.1} />
-            </mesh>
+            </RoundedBox>
           </group>
         </group>
       ))}
 
       <group ref={refs.torso} position={[0, 0.82, 0]}>
-        {/* pelvis + belt */}
-        <mesh position={[0, 0.03, 0]}>
-          <boxGeometry args={[0.33, 0.18, 0.21]} />
+        {/* pelvis */}
+        <RoundedBox args={[0.31, 0.2, 0.22]} radius={0.06} smoothness={4} position={[0, 0.05, 0]}>
           <meshStandardMaterial color="#3a4160" roughness={0.7} />
-        </mesh>
-        <mesh position={[0, 0.13, 0]}>
-          <boxGeometry args={[0.35, 0.05, 0.23]} />
-          <meshStandardMaterial color="#4d5578" metalness={0.15} roughness={0.5} />
-        </mesh>
+        </RoundedBox>
         {/* chest */}
-        <mesh position={[0, 0.38, 0]}>
-          <boxGeometry args={[0.4, 0.44, 0.25]} />
+        <RoundedBox args={[0.4, 0.46, 0.26]} radius={0.07} smoothness={4} position={[0, 0.38, 0]}>
           <meshStandardMaterial
             color={color}
-            roughness={0.62}
+            roughness={0.55}
             emissive={color}
             emissiveIntensity={glow ? 0.7 : 0.05}
           />
-        </mesh>
-        {/* chest plate + status light */}
-        <mesh position={[0, 0.42, 0.135]}>
-          <boxGeometry args={[0.2, 0.16, 0.03]} />
-          <meshStandardMaterial color="#4d5578" roughness={0.35} metalness={0.15} />
-        </mesh>
-        <mesh position={[0, 0.42, 0.155]}>
-          <boxGeometry args={[0.07, 0.04, 0.01]} />
+        </RoundedBox>
+        {/* status light */}
+        <mesh position={[0, 0.44, 0.13]}>
+          <boxGeometry args={[0.09, 0.045, 0.012]} />
           <meshStandardMaterial color={color} emissive={color} emissiveIntensity={1.8} />
         </mesh>
         {/* life-support backpack */}
-        <mesh position={[0, 0.36, -0.19]}>
-          <boxGeometry args={[0.3, 0.38, 0.13]} />
+        <RoundedBox args={[0.28, 0.36, 0.12]} radius={0.05} smoothness={4} position={[0, 0.36, -0.19]}>
           <meshStandardMaterial color="#363c58" roughness={0.55} metalness={0.1} />
-        </mesh>
-        <mesh position={[0, 0.5, -0.23]}>
+        </RoundedBox>
+        <mesh position={[0, 0.5, -0.24]}>
           <boxGeometry args={[0.1, 0.05, 0.04]} />
           <meshStandardMaterial color={color} emissive={color} emissiveIntensity={1.6} />
         </mesh>
@@ -117,10 +155,14 @@ export function CharacterModel({
               <meshStandardMaterial color={color} roughness={0.6} />
             </mesh>
             {charId === "brute" ? (
-              <mesh position={[side * 0.045, 0.05, 0]}>
-                <boxGeometry args={[0.2, 0.13, 0.26]} />
+              <RoundedBox
+                args={[0.2, 0.14, 0.27]}
+                radius={0.05}
+                smoothness={4}
+                position={[side * 0.045, 0.05, 0]}
+              >
                 <meshStandardMaterial color="#8a2f28" roughness={0.55} />
-              </mesh>
+              </RoundedBox>
             ) : null}
             <mesh position={[0, -0.15, 0]}>
               <capsuleGeometry args={[0.065, 0.2, 4, 10]} />
@@ -285,6 +327,91 @@ export function BarrelMesh({ flashRef }: { flashRef?: RefObject<THREE.Mesh> }) {
         <cylinderGeometry args={[0.2, 0.26, 0.04, 12]} />
         <meshStandardMaterial color="#3a4258" />
       </mesh>
+    </>
+  );
+}
+
+/** jelly slime — Mob squashes it and drives the emissive via blobRef */
+export function SlimeMesh({ blobRef }: { blobRef?: RefObject<THREE.Mesh> }) {
+  return (
+    <>
+      <mesh ref={blobRef} position={[0, 0.32, 0]} castShadow>
+        <sphereGeometry args={[0.34, 14, 12]} />
+        <meshStandardMaterial
+          color="#5da53c"
+          emissive="#8adf5a"
+          emissiveIntensity={0.3}
+          transparent
+          opacity={0.92}
+          roughness={0.25}
+        />
+      </mesh>
+      {/* inner core gives it a jelly read */}
+      <mesh position={[0, 0.28, 0]}>
+        <sphereGeometry args={[0.18, 10, 8]} />
+        <meshStandardMaterial color="#3d7a24" transparent opacity={0.85} />
+      </mesh>
+      {/* eyes */}
+      {[-0.11, 0.11].map((x) => (
+        <mesh key={x} position={[x, 0.42, 0.26]}>
+          <sphereGeometry args={[0.055, 8, 8]} />
+          <meshStandardMaterial color="#0c1408" />
+        </mesh>
+      ))}
+    </>
+  );
+}
+
+/** tripod sentry turret — Mob rotates headRef and flashes blobRef */
+export function TurretMesh({
+  blobRef,
+  headRef,
+  friendly = false,
+}: {
+  blobRef?: RefObject<THREE.Mesh>;
+  headRef?: RefObject<THREE.Group>;
+  friendly?: boolean;
+}) {
+  return (
+    <>
+      {/* tripod legs */}
+      {[0, 2.094, 4.189].map((a) => (
+        <mesh
+          key={a}
+          position={[Math.sin(a) * 0.22, 0.16, Math.cos(a) * 0.22]}
+          rotation={[0.5 * Math.cos(a), 0, -0.5 * Math.sin(a)]}
+        >
+          <cylinderGeometry args={[0.035, 0.05, 0.42, 6]} />
+          <meshStandardMaterial color="#2c2c3a" />
+        </mesh>
+      ))}
+      <mesh position={[0, 0.42, 0]}>
+        <cylinderGeometry args={[0.2, 0.26, 0.3, 8]} />
+        <meshStandardMaterial color={friendly ? "#8a7a3a" : "#3a3444"} />
+      </mesh>
+      {/* rotating head + barrel + eye */}
+      <group ref={headRef} position={[0, 0.68, 0]}>
+        <mesh ref={blobRef}>
+          <boxGeometry args={[0.3, 0.22, 0.42]} />
+          <meshStandardMaterial
+            color={friendly ? "#e2c94c" : "#8a4a62"}
+            emissive={friendly ? "#e2c94c" : "#f43f5e"}
+            emissiveIntensity={0.3}
+          />
+        </mesh>
+        <mesh position={[0, 0, 0.32]} rotation={[Math.PI / 2, 0, 0]}>
+          <cylinderGeometry args={[0.05, 0.05, 0.26, 8]} />
+          <meshStandardMaterial color="#1c1c28" />
+        </mesh>
+        <mesh position={[0, 0.08, 0.18]}>
+          <sphereGeometry args={[0.05, 8, 8]} />
+          <meshStandardMaterial
+            color={friendly ? "#fff7c2" : "#ff5a70"}
+            emissive={friendly ? "#e2c94c" : "#f43f5e"}
+            emissiveIntensity={2.4}
+          />
+        </mesh>
+      </group>
     </>
   );
 }

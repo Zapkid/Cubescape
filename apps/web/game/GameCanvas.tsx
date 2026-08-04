@@ -80,12 +80,42 @@ function GameScene({ net }: { net: NetClient }) {
       g.setLook(yaw, pitch);
     };
     const onMouseDown = (e: MouseEvent) => {
-      // universal strike on left click while locked
-      if (document.pointerLockElement === el && e.button === 0) {
-        net.ability(3);
+      // mouse buttons double as action keys while locked:
+      // LMB strike · RMB interact (E) · MMB ping (V) · M4/M5 abilities 1/2
+      if (document.pointerLockElement !== el) return;
+      switch (e.button) {
+        case 0:
+          net.ability(3);
+          break;
+        case 2:
+          net.interact();
+          break;
+        case 1: {
+          e.preventDefault(); // no autoscroll
+          const g = useGame.getState();
+          const fx = Math.sin(g.yaw);
+          const fz = Math.cos(g.yaw);
+          const px = Math.max(0.2, Math.min(8.8, g.px + fx * 3));
+          const pz = Math.max(0.2, Math.min(8.8, g.pz + fz * 3));
+          net.ping("look", px, pz);
+          break;
+        }
+        case 3:
+          e.preventDefault(); // no history navigation
+          net.ability(0);
+          break;
+        case 4:
+          e.preventDefault();
+          net.ability(1);
+          break;
       }
     };
+    const swallow = (e: Event) => {
+      if (document.pointerLockElement === el) e.preventDefault();
+    };
     el.addEventListener("mousedown", onMouseDown);
+    el.addEventListener("contextmenu", swallow);
+    el.addEventListener("auxclick", swallow);
     el.addEventListener("click", onClick);
     document.addEventListener("pointerlockchange", onLockChange);
     document.addEventListener("mousemove", onMove);
@@ -93,6 +123,8 @@ function GameScene({ net }: { net: NetClient }) {
     return () => {
       el.removeEventListener("click", onClick);
       el.removeEventListener("mousedown", onMouseDown);
+      el.removeEventListener("contextmenu", swallow);
+      el.removeEventListener("auxclick", swallow);
       document.removeEventListener("pointerlockchange", onLockChange);
       document.removeEventListener("mousemove", onMove);
       detachKeys();
